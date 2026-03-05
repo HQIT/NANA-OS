@@ -3,6 +3,8 @@ import type { LLMModel } from "../types";
 import { api } from "../api/client";
 import Drawer from "./Drawer";
 
+const genId = () => crypto.randomUUID().slice(0, 8);
+
 const EMPTY: Partial<LLMModel> = { name: "", provider: "openai", model: "", base_url: "", api_key: "", display_name: "", description: "" };
 
 export default function ModelManager() {
@@ -15,7 +17,7 @@ export default function ModelManager() {
 
   const startEdit = (m?: LLMModel) => {
     if (m) { setEditId(m.id); setEditing({ ...m }); }
-    else { setEditId(null); setEditing({ ...EMPTY }); }
+    else { setEditId(null); setEditing({ ...EMPTY, name: genId() }); }
   };
 
   const save = async () => {
@@ -41,22 +43,28 @@ export default function ModelManager() {
 
   return (
     <div className="panel">
-      <div className="panel-header">
-        <h2>Models</h2>
-        <button className="btn-sm" onClick={() => startEdit()}>+ 添加模型</button>
-      </div>
-      <ul className="item-list">
-        {models.length === 0 && <li className="empty-hint">暂无模型配置，请先添加</li>}
+      <div className="card-grid">
+        <div className="entity-card add-card" onClick={() => startEdit()}>
+          <span className="add-card-icon">+</span>
+          <span className="add-card-label">添加模型</span>
+        </div>
         {models.map((m) => (
-          <li key={m.id}>
-            <span className="item-name" onClick={() => startEdit(m)}>
-              {m.display_name || m.name}
-            </span>
-            <span className="item-meta">{m.provider} / {m.model}</span>
-            <button className="btn-sm btn-danger" onClick={() => handleDelete(m.id)}>删除</button>
-          </li>
+          <div key={m.id} className="entity-card" onClick={() => startEdit(m)}>
+            <div className="entity-card-header">
+              <span className="entity-card-name">{m.display_name || m.name}</span>
+              <span className="entity-card-tag">{m.provider}</span>
+            </div>
+            {m.description && <p className="entity-card-desc">{m.description}</p>}
+            <div className="entity-card-meta">
+              <span>{m.model}</span>
+              {m.context_length && <span>{m.context_length.toLocaleString()} tokens</span>}
+            </div>
+            <div className="entity-card-actions">
+              <button className="btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDelete(m.id); }}>删除</button>
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
 
       <Drawer open={!!editing} title={editId ? "编辑模型" : "添加模型"} onClose={() => setEditing(null)}>
         {editing && (
@@ -70,11 +78,10 @@ export default function ModelManager() {
             <label>描述</label>
             <textarea placeholder="模型用途说明（可选）" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} rows={2} />
 
-            <label>Provider</label>
+            <label>API 协议</label>
             <select value={editing.provider || "openai"} onChange={(e) => setEditing({ ...editing, provider: e.target.value })}>
               <option value="openai">OpenAI</option>
-              <option value="ollama">Ollama</option>
-              <option value="vllm">vLLM</option>
+              <option value="anthropic">Anthropic</option>
             </select>
 
             <label>模型名 *</label>

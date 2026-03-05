@@ -29,44 +29,19 @@ class LLMModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
-class Team(Base):
-    __tablename__ = "teams"
-
-    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=_uuid)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, default="")
-    workspace_path: Mapped[str] = mapped_column(String(512), default="")
-    default_model: Mapped[str] = mapped_column(String(128), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
 class Agent(Base):
     __tablename__ = "agents"
 
     id: Mapped[str] = mapped_column(String(12), primary_key=True, default=_uuid)
-    team_id: Mapped[str] = mapped_column(String(12), nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    role: Mapped[str] = mapped_column(String(16), default="sub")
+    group: Mapped[str] = mapped_column(String(128), default="")
+    role: Mapped[str] = mapped_column(String(16), default="agent")
     description: Mapped[str] = mapped_column(Text, default="")
     model: Mapped[str] = mapped_column(String(128), default="")
     system_prompt: Mapped[str] = mapped_column(Text, default="")
     skills: Mapped[list] = mapped_column(JSON, default=list)
     mcp_config_path: Mapped[str] = mapped_column(String(512), default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class Run(Base):
-    __tablename__ = "runs"
-
-    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=_uuid)
-    team_id: Mapped[str] = mapped_column(String(12), nullable=False, index=True)
-    task_text: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(16), default="pending")
-    container_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    log_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    result_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    workspace_path: Mapped[str] = mapped_column(String(512), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -81,6 +56,7 @@ class Subscription(Base):
     source_pattern: Mapped[str] = mapped_column(String(256), nullable=False)
     event_types: Mapped[list] = mapped_column(JSON, nullable=False)
     filter_rules: Mapped[dict] = mapped_column(JSON, default=dict)
+    cron_expression: Mapped[str] = mapped_column(String(64), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

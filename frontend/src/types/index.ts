@@ -11,37 +11,55 @@ export interface LLMModel {
   created_at: string;
 }
 
-export interface Team {
-  id: string;
-  name: string;
-  description: string;
-  workspace_path: string;
-  default_model: string;
-  created_at: string;
-}
-
 export interface Agent {
   id: string;
-  team_id: string;
   name: string;
-  role: "main" | "sub";
+  group: string;
+  role: string;
   description: string;
   model: string;
   system_prompt: string;
   skills: string[];
   mcp_config_path: string;
+  workspace_path: string;
   created_at: string;
 }
 
-export interface Run {
+export interface EventCatalogSource {
   id: string;
-  team_id: string;
-  task_text: string;
-  status: "pending" | "running" | "success" | "failed" | "cancelled" | "queued";
-  container_id?: string;
-  started_at?: string;
-  finished_at?: string;
-  log_path?: string;
-  result_path?: string;
+  name: string;
+  description: string;
+}
+
+export interface EventCatalogType {
+  type: string;
+  category: string;
+  description: string;
+}
+
+export interface EventCatalog {
+  sources: EventCatalogSource[];
+  event_types: EventCatalogType[];
+}
+
+export interface Subscription {
+  id: string;
+  agent_id: string;
+  source_pattern: string;
+  event_types: string[];
+  filter_rules: Record<string, string>;
+  cron_expression: string;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface EventLog {
+  id: string;
+  source: string;
+  event_type: string;
+  subject: string;
+  cloud_event: Record<string, unknown>;
+  matched_agent_ids: string[];
+  status: string;
   created_at: string;
 }

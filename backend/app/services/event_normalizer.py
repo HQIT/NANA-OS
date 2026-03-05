@@ -271,6 +271,59 @@ _NORMALIZERS: list[BaseNormalizer] = [
 ]
 
 
+_EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
+    "git.push": "代码推送",
+    "git.issue.opened": "Issue 创建",
+    "git.issue.closed": "Issue 关闭",
+    "git.issue.reopened": "Issue 重新打开",
+    "git.issue.edited": "Issue 编辑",
+    "git.issue.comment_created": "Issue 评论",
+    "git.pull_request.created": "PR/MR 创建",
+    "git.pull_request.closed": "PR/MR 关闭",
+    "git.pull_request.synchronize": "PR/MR 更新",
+    "git.pull_request.reopened": "PR/MR 重新打开",
+    "git.pull_request.edited": "PR/MR 编辑",
+    "git.pull_request.review_submitted": "PR/MR 评审提交",
+    "git.pull_request.review_comment_created": "PR/MR 评审评论",
+    "git.comment.created": "评论创建",
+    "cron.tick": "定时触发",
+    "manual.trigger": "手动触发",
+    "webhook.received": "通用 Webhook",
+}
+
+
+def get_event_catalog() -> dict:
+    """返回系统支持的所有事件源和事件类型。"""
+    all_types: set[str] = set()
+    for v in _GITHUB_EVENT_MAP.values():
+        all_types.add(v)
+    for v in _GITLAB_EVENT_MAP.values():
+        all_types.add(v)
+    for v in _GITEA_EVENT_MAP.values():
+        all_types.add(v)
+    all_types.update(["cron.tick", "manual.trigger", "webhook.received"])
+
+    sources = [
+        {"id": "github", "name": "GitHub", "description": "GitHub Webhook"},
+        {"id": "gitlab", "name": "GitLab", "description": "GitLab Webhook"},
+        {"id": "gitea", "name": "Gitea", "description": "Gitea Webhook"},
+        {"id": "manual", "name": "手动触发", "description": "手动模拟事件"},
+        {"id": "cron", "name": "定时任务", "description": "CRON 定时事件"},
+        {"id": "generic", "name": "通用 Webhook", "description": "其他 HTTP Webhook"},
+    ]
+
+    event_types = []
+    for t in sorted(all_types):
+        category = t.split(".")[0]
+        event_types.append({
+            "type": t,
+            "category": category,
+            "description": _EVENT_TYPE_DESCRIPTIONS.get(t, t),
+        })
+
+    return {"sources": sources, "event_types": event_types}
+
+
 def detect_and_normalize(
     headers: dict[str, str],
     payload: dict,

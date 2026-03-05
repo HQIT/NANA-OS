@@ -6,3 +6,4 @@ docker
 pydantic
 pydantic-settings
 httpx
+croniter

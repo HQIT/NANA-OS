@@ -1,53 +1,48 @@
-import { useState } from "react";
-import type { Team } from "./types";
-import TeamList from "./components/TeamList";
+import { useEffect, useState, useCallback } from "react";
 import AgentList from "./components/AgentList";
-import RunPanel from "./components/RunPanel";
 import ModelManager from "./components/ModelManager";
+import EventLogList from "./components/EventLogList";
 
-type Tab = "agents" | "runs";
-type GlobalTab = "teams" | "models";
+type GlobalTab = "agents" | "models" | "events";
+const VALID_TABS: GlobalTab[] = ["agents", "events", "models"];
+
+function readHash(): { tab: GlobalTab; sub: string } {
+  const raw = window.location.hash.replace(/^#\/?/, "");
+  const [first, ...rest] = raw.split("/");
+  const tab = VALID_TABS.includes(first as GlobalTab) ? (first as GlobalTab) : "agents";
+  return { tab, sub: rest.join("/") };
+}
 
 export default function App() {
-  const [globalTab, setGlobalTab] = useState<GlobalTab>("teams");
-  const [selectedTeam, setSelectedTeam] = useState<Team | undefined>();
-  const [tab, setTab] = useState<Tab>("agents");
+  const [globalTab, setGlobalTab] = useState<GlobalTab>(() => readHash().tab);
+  const [subHash, setSubHash] = useState(() => readHash().sub);
+
+  useEffect(() => {
+    const onHash = () => { const h = readHash(); setGlobalTab(h.tab); setSubHash(h.sub); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const navigate = useCallback((tab: GlobalTab, sub = "") => {
+    window.location.hash = sub ? `${tab}/${sub}` : tab;
+  }, []);
 
   return (
     <div className="app">
       <header className="app-header">
-        <h1>NANA-OS</h1>
+        <h1>NANA OS</h1>
         <nav className="header-nav">
-          <button className={globalTab === "teams" ? "header-tab active" : "header-tab"} onClick={() => setGlobalTab("teams")}>Teams</button>
-          <button className={globalTab === "models" ? "header-tab active" : "header-tab"} onClick={() => setGlobalTab("models")}>Models</button>
+          <button className={globalTab === "agents" ? "header-tab active" : "header-tab"} onClick={() => navigate("agents")}>Agents</button>
+          <button className={globalTab === "events" ? "header-tab active" : "header-tab"} onClick={() => navigate("events")}>Events</button>
+          <button className={globalTab === "models" ? "header-tab active" : "header-tab"} onClick={() => navigate("models")}>Models</button>
         </nav>
       </header>
 
-      {globalTab === "models" ? (
-        <div className="main-content" style={{ height: "calc(100vh - 57px)" }}>
-          <ModelManager />
-        </div>
-      ) : (
-        <div className="layout">
-          <aside className="sidebar">
-            <TeamList onSelect={setSelectedTeam} selected={selectedTeam} />
-          </aside>
-          <main className="main-content">
-            {selectedTeam ? (
-              <>
-                <nav className="tabs">
-                  <button className={tab === "agents" ? "tab active" : "tab"} onClick={() => setTab("agents")}>Agents</button>
-                  <button className={tab === "runs" ? "tab active" : "tab"} onClick={() => setTab("runs")}>Runs</button>
-                </nav>
-                {tab === "agents" && <AgentList team={selectedTeam} />}
-                {tab === "runs" && <RunPanel team={selectedTeam} />}
-              </>
-            ) : (
-              <div className="placeholder">选择一个团队开始</div>
-            )}
-          </main>
-        </div>
-      )}
+      <div className="main-content" style={{ height: "calc(100vh - 57px)" }}>
+        {globalTab === "agents" && <AgentList />}
+        {globalTab === "events" && <EventLogList subTab={subHash === "logs" ? "logs" : "catalog"} onSubTabChange={(s: string) => navigate("events", s)} />}
+        {globalTab === "models" && <ModelManager />}
+      </div>
     </div>
   );
 }

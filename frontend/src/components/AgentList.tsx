@@ -1,24 +1,30 @@
 import { useEffect, useState } from "react";
-import type { Agent, Team } from "../types";
+import type { Agent } from "../types";
 import { api } from "../api/client";
 import Drawer from "./Drawer";
 import ModelSelect from "./ModelSelect";
+import SubscriptionEditor from "./SubscriptionEditor";
 
-interface Props {
-  team: Team;
-}
+const EMPTY: Partial<Agent> = {
+  name: "", group: "", role: "agent", description: "", model: "",
+  system_prompt: "", skills: [], mcp_config_path: "", workspace_path: "",
+};
 
-const EMPTY: Partial<Agent> = { name: "", role: "sub", description: "", model: "", system_prompt: "", skills: [], mcp_config_path: "" };
-
-export default function AgentList({ team }: Props) {
+export default function AgentList() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [editing, setEditing] = useState<Partial<Agent> | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
+  const [subAgentId, setSubAgentId] = useState<string | null>(null);
+  const [filterGroup, setFilterGroup] = useState("");
 
-  const load = () => api.listAgents(team.id).then(setAgents);
-  useEffect(() => { load(); }, [team.id]);
+  const load = () => api.listAgents().then(setAgents);
+  useEffect(() => { load(); }, []);
+
+  const groups = [...new Set(agents.map((a) => a.group).filter(Boolean))];
+  const filtered = filterGroup ? agents.filter((a) => a.group === filterGroup) : agents;
 
   const startEdit = (a?: Agent) => {
+    setSubAgentId(null);
     if (a) {
       setEditId(a.id);
       setEditing({ ...a });
@@ -28,21 +34,29 @@ export default function AgentList({ team }: Props) {
     }
   };
 
+  const openSubscriptions = (agentId: string) => {
+    setEditing(null);
+    setEditId(null);
+    setSubAgentId(agentId);
+  };
+
   const save = async () => {
     if (!editing?.name?.trim()) return;
     const data = {
       name: editing.name,
-      role: editing.role || "sub",
+      group: editing.group || "",
+      role: editing.role || "agent",
       description: editing.description || "",
       model: editing.model || "",
       system_prompt: editing.system_prompt || "",
       skills: editing.skills || [],
       mcp_config_path: editing.mcp_config_path || "",
+      workspace_path: editing.workspace_path || "",
     };
     if (editId) {
-      await api.updateAgent(team.id, editId, data);
+      await api.updateAgent(editId, data);
     } else {
-      await api.createAgent(team.id, data);
+      await api.createAgent(data);
     }
     setEditing(null);
     setEditId(null);
@@ -50,43 +64,55 @@ export default function AgentList({ team }: Props) {
   };
 
   const handleDelete = async (id: string) => {
-    await api.deleteAgent(team.id, id);
+    await api.deleteAgent(id);
     load();
   };
 
   return (
     <div className="panel">
-      <div className="panel-header">
-        <h2>Agents - {team.name}</h2>
-        <button className="btn-sm" onClick={() => startEdit()}>+ 添加 Agent</button>
-      </div>
+      {groups.length > 0 && (
+        <div className="panel-toolbar">
+          <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)} style={{ fontSize: 13, maxWidth: 160 }}>
+            <option value="">全部分组</option>
+            {groups.map((g) => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+      )}
 
-      <ul className="item-list">
-        {agents.length === 0 && <li className="empty-hint">暂无 Agent，点击上方添加</li>}
-        {agents.map((a) => (
-          <li key={a.id}>
-            <span className={`role-badge role-${a.role}`}>{a.role}</span>
-            <span className="item-name" onClick={() => startEdit(a)}>{a.name}</span>
-            <span className="item-meta">{a.model || "default"}</span>
-            <button className="btn-sm btn-danger" onClick={() => handleDelete(a.id)}>删除</button>
-          </li>
+      <div className="card-grid">
+        <div className="entity-card add-card" onClick={() => startEdit()}>
+          <span className="add-card-icon">+</span>
+          <span className="add-card-label">添加 Agent</span>
+        </div>
+        {filtered.map((a) => (
+          <div key={a.id} className="entity-card" onClick={() => startEdit(a)}>
+            <div className="entity-card-header">
+              <span className="entity-card-name">{a.name}</span>
+              {a.group && <span className="entity-card-tag">{a.group}</span>}
+            </div>
+            {a.description && <p className="entity-card-desc">{a.description}</p>}
+            <div className="entity-card-meta">
+              <span>{a.model || "default model"}</span>
+            </div>
+            <div className="entity-card-actions">
+              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openSubscriptions(a.id); }}>订阅</button>
+              <button className="btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}>删除</button>
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
 
       <Drawer open={!!editing} title={editId ? "编辑 Agent" : "添加 Agent"} onClose={() => setEditing(null)}>
         {editing && (
           <div className="drawer-form">
             <label>名称 *</label>
-            <input placeholder="例如：researcher" value={editing.name || ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+            <input placeholder="例如：code-reviewer" value={editing.name || ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
 
-            <label>角色</label>
-            <select value={editing.role || "sub"} onChange={(e) => setEditing({ ...editing, role: e.target.value as "main" | "sub" })}>
-              <option value="main">Main（主 Agent）</option>
-              <option value="sub">Sub（子 Agent）</option>
-            </select>
+            <label>分组</label>
+            <input placeholder="可选，如：代码审查、论文写作" value={editing.group || ""} onChange={(e) => setEditing({ ...editing, group: e.target.value })} />
 
             <label>模型</label>
-            <ModelSelect value={editing.model || ""} onChange={(v) => setEditing({ ...editing, model: v })} emptyLabel="使用团队默认模型" />
+            <ModelSelect value={editing.model || ""} onChange={(v) => setEditing({ ...editing, model: v })} emptyLabel="未指定" />
 
             <label>描述</label>
             <input placeholder="该 Agent 的职责说明" value={editing.description || ""} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
@@ -100,6 +126,14 @@ export default function AgentList({ team }: Props) {
             </div>
           </div>
         )}
+      </Drawer>
+
+      <Drawer
+        open={subAgentId !== null}
+        title={`事件订阅 - ${agents.find((a) => a.id === subAgentId)?.name ?? ""}`}
+        onClose={() => setSubAgentId(null)}
+      >
+        {subAgentId && <SubscriptionEditor agentId={subAgentId} />}
       </Drawer>
     </div>
   );

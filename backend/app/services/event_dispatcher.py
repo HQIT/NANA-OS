@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.tables import Agent, Team, LLMModel, EventLog
+from app.models.tables import Agent, LLMModel, EventLog
 from app.services.docker_runner import (
     start_container,
     get_container_status,
@@ -134,17 +134,16 @@ async def dispatch_event(
             logger.warning("Agent %s not found, skipping dispatch", agent_id)
             continue
 
-        team = await db.get(Team, agent.team_id)
-        if not team or not team.workspace_path:
-            logger.warning("Team for agent %s not found, skipping", agent_id)
+        if not agent.workspace_path:
+            logger.warning("Agent %s has no workspace_path, skipping", agent_id)
             continue
 
         run_id = uuid.uuid4().hex[:12]
-        workspace = Path(team.workspace_path)
+        workspace = Path(agent.workspace_path)
 
         config = _build_event_task_config(
             agent, llm_models, event, run_id,
-            default_model=team.default_model,
+            default_model="",
         )
 
         config_path = workspace / f"agent-task-{run_id}.json"

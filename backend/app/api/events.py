@@ -1,5 +1,6 @@
-"""Event Gateway API: webhook 接收 + 事件日志查询。"""
+"""Event Gateway API: webhook 接收 + 手动触发 + 事件目录 + 事件日志查询。"""
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Request, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,11 +9,22 @@ from app.config import settings
 from app.db.database import get_db
 from app.models.tables import Subscription, EventLog
 from app.models.schemas import EventLogOut
-from app.services.event_normalizer import detect_and_normalize
+from app.services.event_normalizer import (
+    detect_and_normalize,
+    get_event_catalog,
+    _make_event,
+)
 from app.services.event_router import match_subscriptions
 from app.services.event_dispatcher import dispatch_event
 
-router = APIRouter(prefix="/api/events", tags=["events"])
+router = APIRouter(prefix="/events", tags=["events"])
+
+
+class ManualEventBody(BaseModel):
+    event_type: str
+    source: str = "manual/test"
+    subject: str = ""
+    data: dict = {}
 
 
 @router.post("/webhook/{source}")
@@ -34,6 +46,43 @@ async def receive_webhook(
         event = detect_and_normalize(headers, payload, body, settings.webhook_secrets)
     except ValueError as e:
         raise HTTPException(403, str(e))
+
+    subs_result = await db.execute(
+        select(Subscription).where(Subscription.enabled == True)  # noqa: E712
+    )
+    subscriptions = list(subs_result.scalars().all())
+
+    matched_ids = match_subscriptions(event, subscriptions)
+
+    event_log = await dispatch_event(event, matched_ids, db)
+
+    return {
+        "event_id": event_log.id,
+        "type": event.get("type"),
+        "source": event.get("source"),
+        "matched_agents": matched_ids,
+        "status": event_log.status,
+    }
+
+
+@router.get("/catalog")
+async def event_catalog():
+    """返回系统支持的所有事件源和事件类型。"""
+    return get_event_catalog()
+
+
+@router.post("/manual")
+async def trigger_manual_event(
+    body: ManualEventBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """手动触发一个事件，用于测试/模拟。"""
+    event = _make_event(
+        source=body.source,
+        event_type=body.event_type,
+        subject=body.subject,
+        data=body.data,
+    )
 
     subs_result = await db.execute(
         select(Subscription).where(Subscription.enabled == True)  # noqa: E712

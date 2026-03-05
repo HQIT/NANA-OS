@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.models.tables import Agent, Subscription
 from app.models.schemas import SubscriptionCreate, SubscriptionUpdate, SubscriptionOut
 
-router = APIRouter(prefix="/api/agents/{agent_id}/subscriptions", tags=["subscriptions"])
+router = APIRouter(prefix="/agents/{agent_id}/subscriptions", tags=["subscriptions"])
 
 
 async def _ensure_agent(agent_id: str, db: AsyncSession) -> Agent:

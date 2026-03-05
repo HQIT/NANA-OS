@@ -1,15 +1,14 @@
-"""根据 Team + Agents + 系统模型配置生成 DiAgent agent-task.json。"""
+"""根据 Agent + 系统模型配置生成 DiAgent agent-task.json。"""
 
 import json
 from pathlib import Path
 from typing import Any
 
-from app.models.tables import Team, Agent, LLMModel
+from app.models.tables import Agent, LLMModel
 
 
 def build_task_config(
-    team: Team,
-    agents: list[Agent],
+    agent: Agent,
     llm_models: list[LLMModel],
     task_text: str,
     run_id: str,
@@ -18,14 +17,9 @@ def build_task_config(
     temperature: float | None = None,
 ) -> dict[str, Any]:
     model_map = {m.name: m for m in llm_models}
+    used_model = model_override or agent.model
 
-    main_agent = next((a for a in agents if a.role == "main"), None)
-    sub_agents = [a for a in agents if a.role == "sub"]
-
-    used_model = model_override or (main_agent.model if main_agent and main_agent.model else team.default_model)
-
-    # 收集所有用到的模型名
-    all_model_names = {used_model} | {a.model for a in agents if a.model}
+    all_model_names = {used_model}
     all_model_names.discard("")
 
     models_section: dict[str, Any] = {
@@ -62,30 +56,12 @@ def build_task_config(
         "recursion_limit": 100,
     }
 
-    if main_agent and main_agent.system_prompt:
-        task_section["system_prompt"] = main_agent.system_prompt
-    if main_agent and main_agent.skills:
-        task_section["skill_names"] = main_agent.skills
-    if main_agent and main_agent.mcp_config_path:
-        task_section["mcp_config_path"] = main_agent.mcp_config_path
-
-    subagents_list = []
-    for sa in sub_agents:
-        sa_entry: dict[str, Any] = {
-            "name": sa.name,
-            "description": sa.description,
-            "prompt": sa.system_prompt or f"你是 {sa.name}",
-        }
-        if sa.model:
-            sa_entry["model"] = sa.model
-        if sa.skills:
-            sa_entry["skill_names"] = sa.skills
-        if sa.mcp_config_path:
-            sa_entry["mcp_config_path"] = sa.mcp_config_path
-        subagents_list.append(sa_entry)
-
-    if subagents_list:
-        task_section["subagents"] = subagents_list
+    if agent.system_prompt:
+        task_section["system_prompt"] = agent.system_prompt
+    if agent.skills:
+        task_section["skill_names"] = agent.skills
+    if agent.mcp_config_path:
+        task_section["mcp_config_path"] = agent.mcp_config_path
 
     return {"models": models_section, "task": task_section}
 

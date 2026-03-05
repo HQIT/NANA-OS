@@ -22,31 +22,42 @@ export const api = {
     request<import("../types").LLMModel>(`/models/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteModel: (id: string) => request<void>(`/models/${id}`, { method: "DELETE" }),
 
-  // Teams
-  listTeams: () => request<import("../types").Team[]>("/teams"),
-  createTeam: (data: { name: string; description?: string; default_model?: string }) =>
-    request<import("../types").Team>("/teams", { method: "POST", body: JSON.stringify(data) }),
-  getTeam: (id: string) => request<import("../types").Team>(`/teams/${id}`),
-  updateTeam: (id: string, data: Record<string, unknown>) =>
-    request<import("../types").Team>(`/teams/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteTeam: (id: string) => request<void>(`/teams/${id}`, { method: "DELETE" }),
-
   // Agents
-  listAgents: (teamId: string) => request<import("../types").Agent[]>(`/teams/${teamId}/agents`),
-  createAgent: (teamId: string, data: Record<string, unknown>) =>
-    request<import("../types").Agent>(`/teams/${teamId}/agents`, { method: "POST", body: JSON.stringify(data) }),
-  updateAgent: (teamId: string, agentId: string, data: Record<string, unknown>) =>
-    request<import("../types").Agent>(`/teams/${teamId}/agents/${agentId}`, { method: "PUT", body: JSON.stringify(data) }),
-  deleteAgent: (teamId: string, agentId: string) =>
-    request<void>(`/teams/${teamId}/agents/${agentId}`, { method: "DELETE" }),
+  listAgents: (group?: string) => {
+    const q = group ? `?group=${encodeURIComponent(group)}` : "";
+    return request<import("../types").Agent[]>(`/agents${q}`);
+  },
+  createAgent: (data: Record<string, unknown>) =>
+    request<import("../types").Agent>("/agents", { method: "POST", body: JSON.stringify(data) }),
+  updateAgent: (agentId: string, data: Record<string, unknown>) =>
+    request<import("../types").Agent>(`/agents/${agentId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteAgent: (agentId: string) =>
+    request<void>(`/agents/${agentId}`, { method: "DELETE" }),
 
-  // Runs
-  createRun: (teamId: string, data: { task: string; model?: string; temperature?: number }) =>
-    request<import("../types").Run>(`/teams/${teamId}/run`, { method: "POST", body: JSON.stringify(data) }),
-  listRuns: (teamId?: string) =>
-    request<import("../types").Run[]>(`/runs${teamId ? `?team_id=${teamId}` : ""}`),
-  getRun: (runId: string) => request<import("../types").Run>(`/runs/${runId}`),
-  getRunLog: (runId: string) => request<{ content: string }>(`/runs/${runId}/log`),
-  getRunResult: (runId: string) => request<{ content: string }>(`/runs/${runId}/result`),
-  stopRun: (runId: string) => request<{ stopped: boolean }>(`/runs/${runId}/stop`, { method: "POST" }),
+  // Subscriptions
+  listSubscriptions: (agentId: string) =>
+    request<import("../types").Subscription[]>(`/agents/${agentId}/subscriptions`),
+  createSubscription: (agentId: string, data: Record<string, unknown>) =>
+    request<import("../types").Subscription>(`/agents/${agentId}/subscriptions`, { method: "POST", body: JSON.stringify(data) }),
+  updateSubscription: (agentId: string, subId: string, data: Record<string, unknown>) =>
+    request<import("../types").Subscription>(`/agents/${agentId}/subscriptions/${subId}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteSubscription: (agentId: string, subId: string) =>
+    request<void>(`/agents/${agentId}/subscriptions/${subId}`, { method: "DELETE" }),
+
+  // Events
+  listEvents: (params?: { source?: string; event_type?: string; status?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.source) q.set("source", params.source);
+    if (params?.event_type) q.set("event_type", params.event_type);
+    if (params?.status) q.set("status", params.status);
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return request<import("../types").EventLog[]>(`/events${qs ? `?${qs}` : ""}`);
+  },
+  getEvent: (eventId: string) => request<import("../types").EventLog>(`/events/${eventId}`),
+
+  // Event Catalog & Manual Trigger
+  getEventCatalog: () => request<import("../types").EventCatalog>("/events/catalog"),
+  triggerManualEvent: (data: { event_type: string; source?: string; subject?: string; data?: Record<string, unknown> }) =>
+    request<Record<string, unknown>>("/events/manual", { method: "POST", body: JSON.stringify(data) }),
 };
