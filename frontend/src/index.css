@@ -1,0 +1,180 @@
+:root {
+  --bg: #0f1117;
+  --bg-surface: #1a1d27;
+  --bg-hover: #232730;
+  --border: #2a2e3a;
+  --text: #e4e6eb;
+  --text-secondary: #8b8fa3;
+  --color-primary: #6c8eef;
+  --color-info: #4ea8de;
+  --color-success: #48c78e;
+  --color-danger: #f14668;
+  --color-warning: #f0a020;
+  --color-muted: #555;
+  --radius: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+.app-header h1 { font-size: 20px; font-weight: 700; color: var(--color-primary); }
+.subtitle { font-size: 13px; color: var(--text-secondary); }
+
+.layout {
+  display: flex;
+  height: calc(100vh - 57px);
+}
+
+.sidebar {
+  width: 320px;
+  min-width: 260px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+
+.panel h2 { font-size: 16px; margin-bottom: 12px; }
+
+/* Forms */
+.form-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.flex-1 { flex: 1; }
+
+input, textarea, select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 14px;
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--color-primary); }
+
+button {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { opacity: 0.9; }
+.btn-secondary { background: var(--bg-hover); color: var(--text-secondary); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: var(--color-danger); }
+
+/* Lists */
+.item-list { list-style: none; margin-top: 8px; }
+.item-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: default;
+}
+.item-list li:hover { background: var(--bg-hover); }
+.item-list li.active { background: var(--bg-hover); border-left: 3px solid var(--color-primary); }
+.item-name { flex: 1; cursor: pointer; font-weight: 500; }
+.item-meta { font-size: 12px; color: var(--text-secondary); }
+
+.role-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.role-main { background: #2d3a5e; color: var(--color-primary); }
+.role-sub { background: #233040; color: var(--color-info); }
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+.tab {
+  background: transparent;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 16px;
+}
+.tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+
+/* Edit form */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  margin: 12px 0;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+/* Run detail */
+.run-detail {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+.run-detail h3 { margin-bottom: 8px; }
+.run-detail p { margin-bottom: 4px; font-size: 14px; }
+
+.log-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  max-height: 400px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+}
+
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 8px 0 4px;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
