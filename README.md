@@ -2,71 +2,16 @@
 
 > **NANA** = **N**etwork **A**ttached **N**ative **A**gent
 
-NANA-OS 是面向 Agent 的操作层，为多个 Agent 提供运行环境、资源与协作能力。当前核心模块是 **Agent Teams 管理工具**——基于 [DiAgent](https://github.com/HQIT/DiAgent) 的多团队 Agent 编排与任务管理平台。
+NANA-OS 是面向 Agent 的事件驱动编排平台，基于 [DiAgent](https://github.com/HQIT/DiAgent)，负责将外部事件路由到对应的 Agent 并驱动其自动执行任务。
 
 ## 功能
 
-- 创建多个 Agent Team，每个 Team 包含一个主 Agent + 多个子 Agent
-- 通过 Web UI 管理团队、Agent 配置（模型、提示词、Skills、MCP 等）
-- 一键下发任务，后端自动生成 DiAgent 配置并通过 Docker SDK 启动容器执行
-- 查看运行状态、日志与结果，支持中止运行中的任务
-
-## 架构
-
-```
-NANA-OS
-├── backend/     FastAPI 管理服务（Docker SDK 驱动 DiAgent 容器）
-├── frontend/    React Web UI
-└── workspace/   各团队工作区（挂载给 DiAgent 容器）
-```
-
-后端通过 Docker Socket 创建 DiAgent GHCR 镜像的兄弟容器，每次任务独立隔离。
-
-## 快速启动
-
-### 生产部署
-
-```bash
-docker compose up -d
-```
-
-- 前端：http://localhost:3000
-- 后端 API：http://localhost:8000
-
-### 开发环境（Docker，热加载）
-
-```bash
-docker compose -f docker-compose.dev.yml up --build
-```
-
-修改 `backend/` 或 `frontend/src/` 下的代码会自动热加载，无需重新 build。
-
-### 本地开发（不用 Docker）
-
-```bash
-# 后端
-cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload
-
-# 前端
-cd frontend
-npm install
-npm run dev
-```
-
-## 配置
-
-通过环境变量配置（前缀 `NANAOS_`）：
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `NANAOS_DIAGENT_IMAGE` | `ghcr.io/hqit/diagent/agent-task:latest` | DiAgent Docker 镜像 |
-| `NANAOS_WORKSPACE_ROOT` | `./workspace` | 工作区根目录 |
-| `NANAOS_HOST_WORKSPACE_ROOT` | 空 | Docker-in-Docker 时宿主机 workspace 路径 |
-| `NANAOS_DATABASE_URL` | `sqlite+aiosqlite:///./nanaos.db` | 数据库连接 |
-| `NANAOS_MAX_CONCURRENT_RUNS` | `5` | 最大并发运行数 |
+- **Agent 管理**：创建和配置多个 AI Agent，为每个 Agent 设置角色、系统提示词、使用的语言模型以及可调用的 Skills 和 MCP 工具
+- **事件接入**：支持接入 GitHub / GitLab / Gitea Webhook、IMAP 邮件轮询及通用 HTTP Webhook 等多种事件来源
+- **事件订阅**：为每个 Agent 配置订阅规则，包括事件来源匹配、事件类型过滤、字段条件及定时触发（Cron）
+- **自动执行**：事件触发后自动为匹配的 Agent 启动隔离容器执行任务，并记录运行状态与日志
+- **模型管理**：统一管理多个 LLM 接入端点，供 Agent 按需选用
+- **MCP 集成**：管理 MCP Server 配置，为 Agent 提供丰富的外部工具能力
 
 ## License
 
