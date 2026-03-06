@@ -41,7 +41,36 @@ class Agent(Base):
     system_prompt: Mapped[str] = mapped_column(Text, default="")
     skills: Mapped[list] = mapped_column(JSON, default=list)
     mcp_config_path: Mapped[str] = mapped_column(String(512), default="")
+    mcp_server_ids: Mapped[list] = mapped_column(JSON, default=list)  # 选中的 McpServer id 列表，下发时生成 config
     workspace_path: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# ── Connectors (事件源) ──
+
+
+class Connector(Base):
+    __tablename__ = "connectors"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=_uuid)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)  # github, gitlab, gitea, imap, generic
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)  # type 相关: webhook secret, IMAP 参数等
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+# ── MCP（供 DiAgent 使用） ──
+
+
+class McpServer(Base):
+    __tablename__ = "mcp_servers"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    command: Mapped[str] = mapped_column(String(512), nullable=False)
+    args: Mapped[list] = mapped_column(JSON, default=list)
+    env: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

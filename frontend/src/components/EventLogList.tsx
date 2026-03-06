@@ -72,8 +72,11 @@ export default function EventLogList({ subTab, onSubTabChange }: { subTab: SubTa
     }
   };
 
+  const configuredCategories = catalog
+    ? new Set(catalog.sources.filter((s) => catalog.connector_status?.[s.id] !== false).map((s) => s.id))
+    : new Set<string>();
   const filteredTypes = catalog
-    ? catalog.event_types.filter((et) => !filterCategory || et.category === filterCategory)
+    ? catalog.event_types.filter((et) => configuredCategories.has(et.category) && (!filterCategory || et.category === filterCategory))
     : [];
   const grouped = Object.entries(
     filteredTypes.reduce<Record<string, EventCatalogType[]>>((acc, et) => {
@@ -162,16 +165,18 @@ export default function EventLogList({ subTab, onSubTabChange }: { subTab: SubTa
               <div className="catalog-sources">
                 <h3 className="catalog-section-title">事件源</h3>
                 <div className="catalog-source-grid">
-                  {catalog.sources.map((s) => (
-                    <div
-                      key={s.id}
-                      className={`catalog-source-card ${filterCategory === s.id ? "catalog-source-active" : ""}`}
-                      onClick={() => setFilterCategory(filterCategory === s.id ? null : s.id)}
-                    >
-                      <span className="catalog-source-name">{s.name}</span>
-                      <span className="catalog-source-desc">{s.description}</span>
-                    </div>
-                  ))}
+                  {catalog.sources
+                    .filter((s) => catalog.connector_status?.[s.id] !== false)
+                    .map((s) => (
+                      <div
+                        key={s.id}
+                        className={`catalog-source-card ${filterCategory === s.id ? "catalog-source-active" : ""}`}
+                        onClick={() => setFilterCategory(filterCategory === s.id ? null : s.id)}
+                      >
+                        <span className="catalog-source-name">{s.name}</span>
+                        <span className="catalog-source-desc">{s.description}</span>
+                      </div>
+                    ))}
                 </div>
               </div>
 

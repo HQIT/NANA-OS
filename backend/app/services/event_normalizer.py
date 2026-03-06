@@ -289,6 +289,7 @@ _EVENT_TYPE_DESCRIPTIONS: dict[str, str] = {
     "cron.tick": "定时触发",
     "manual.trigger": "手动触发",
     "webhook.received": "通用 Webhook",
+    "email.received": "邮件收取（IMAP）",
 }
 
 
@@ -301,15 +302,14 @@ def get_event_catalog() -> dict:
         all_types.add(v)
     for v in _GITEA_EVENT_MAP.values():
         all_types.add(v)
-    all_types.update(["cron.tick", "manual.trigger", "webhook.received"])
+    all_types.update(["cron.tick", "manual.trigger", "webhook.received", "email.received"])
 
     sources = [
-        {"id": "github", "name": "GitHub", "description": "GitHub Webhook"},
-        {"id": "gitlab", "name": "GitLab", "description": "GitLab Webhook"},
-        {"id": "gitea", "name": "Gitea", "description": "Gitea Webhook"},
+        {"id": "git", "name": "Git Webhook", "description": "GitHub / GitLab / Gitea 等"},
+        {"id": "email", "name": "邮件", "description": "IMAP 收取邮件"},
         {"id": "manual", "name": "手动触发", "description": "手动模拟事件"},
         {"id": "cron", "name": "定时任务", "description": "CRON 定时事件"},
-        {"id": "generic", "name": "通用 Webhook", "description": "其他 HTTP Webhook"},
+        {"id": "webhook", "name": "通用 Webhook", "description": "其他 HTTP Webhook"},
     ]
 
     event_types = []

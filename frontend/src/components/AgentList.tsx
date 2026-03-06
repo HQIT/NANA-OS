@@ -4,17 +4,22 @@ import { api } from "../api/client";
 import Drawer from "./Drawer";
 import ModelSelect from "./ModelSelect";
 import SubscriptionEditor from "./SubscriptionEditor";
+import SkillsEditor from "./SkillsEditor";
+import McpEditor from "./McpEditor";
 
 const EMPTY: Partial<Agent> = {
   name: "", group: "", role: "agent", description: "", model: "",
-  system_prompt: "", skills: [], mcp_config_path: "", workspace_path: "",
+  system_prompt: "", skills: [], mcp_config_path: "", mcp_server_ids: [], workspace_path: "",
 };
+
+type DrawerMode = "edit" | "subscriptions" | "skills" | "mcp";
 
 export default function AgentList() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [editing, setEditing] = useState<Partial<Agent> | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
-  const [subAgentId, setSubAgentId] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode | null>(null);
+  const [targetAgentId, setTargetAgentId] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState("");
 
   const load = () => api.listAgents().then(setAgents);
@@ -23,8 +28,15 @@ export default function AgentList() {
   const groups = [...new Set(agents.map((a) => a.group).filter(Boolean))];
   const filtered = filterGroup ? agents.filter((a) => a.group === filterGroup) : agents;
 
+  const closeAll = () => {
+    setEditing(null);
+    setEditId(null);
+    setDrawerMode(null);
+    setTargetAgentId(null);
+  };
+
   const startEdit = (a?: Agent) => {
-    setSubAgentId(null);
+    closeAll();
     if (a) {
       setEditId(a.id);
       setEditing({ ...a });
@@ -32,12 +44,13 @@ export default function AgentList() {
       setEditId(null);
       setEditing({ ...EMPTY });
     }
+    setDrawerMode("edit");
   };
 
-  const openSubscriptions = (agentId: string) => {
-    setEditing(null);
-    setEditId(null);
-    setSubAgentId(agentId);
+  const openDrawer = (agentId: string, mode: DrawerMode) => {
+    closeAll();
+    setTargetAgentId(agentId);
+    setDrawerMode(mode);
   };
 
   const save = async () => {
@@ -51,6 +64,7 @@ export default function AgentList() {
       system_prompt: editing.system_prompt || "",
       skills: editing.skills || [],
       mcp_config_path: editing.mcp_config_path || "",
+      mcp_server_ids: editing.mcp_server_ids || [],
       workspace_path: editing.workspace_path || "",
     };
     if (editId) {
@@ -58,8 +72,7 @@ export default function AgentList() {
     } else {
       await api.createAgent(data);
     }
-    setEditing(null);
-    setEditId(null);
+    closeAll();
     load();
   };
 
@@ -67,6 +80,20 @@ export default function AgentList() {
     await api.deleteAgent(id);
     load();
   };
+
+  const saveSkills = async (skills: string[]) => {
+    if (!targetAgentId) return;
+    await api.updateAgent(targetAgentId, { skills });
+    load();
+  };
+
+  const saveMcp = async (ids: string[]) => {
+    if (!targetAgentId) return;
+    await api.updateAgent(targetAgentId, { mcp_server_ids: ids });
+    load();
+  };
+
+  const targetAgent = agents.find((a) => a.id === targetAgentId);
 
   return (
     <div className="panel">
@@ -93,16 +120,21 @@ export default function AgentList() {
             {a.description && <p className="entity-card-desc">{a.description}</p>}
             <div className="entity-card-meta">
               <span>{a.model || "default model"}</span>
+              {(a.skills?.length || 0) > 0 && <span>Skills: {a.skills!.length}</span>}
+              {(a.mcp_server_ids?.length || 0) > 0 && <span>MCP: {a.mcp_server_ids!.length}</span>}
             </div>
             <div className="entity-card-actions">
-              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openSubscriptions(a.id); }}>订阅</button>
+              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "subscriptions"); }}>订阅</button>
+              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "skills"); }}>Skills</button>
+              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "mcp"); }}>MCP</button>
               <button className="btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}>删除</button>
             </div>
           </div>
         ))}
       </div>
 
-      <Drawer open={!!editing} title={editId ? "编辑 Agent" : "添加 Agent"} onClose={() => setEditing(null)}>
+      {/* 基础信息 Drawer */}
+      <Drawer open={drawerMode === "edit"} title={editId ? "编辑 Agent" : "添加 Agent"} onClose={closeAll}>
         {editing && (
           <div className="drawer-form">
             <label>名称 *</label>
@@ -122,18 +154,41 @@ export default function AgentList() {
 
             <div className="drawer-actions">
               <button onClick={save}>保存</button>
-              <button className="btn-secondary" onClick={() => setEditing(null)}>取消</button>
+              <button className="btn-secondary" onClick={closeAll}>取消</button>
             </div>
           </div>
         )}
       </Drawer>
 
+      {/* 事件订阅 Drawer */}
       <Drawer
-        open={subAgentId !== null}
-        title={`事件订阅 - ${agents.find((a) => a.id === subAgentId)?.name ?? ""}`}
-        onClose={() => setSubAgentId(null)}
+        open={drawerMode === "subscriptions" && !!targetAgentId}
+        title={`事件订阅 - ${targetAgent?.name ?? ""}`}
+        onClose={closeAll}
       >
-        {subAgentId && <SubscriptionEditor agentId={subAgentId} />}
+        {drawerMode === "subscriptions" && targetAgentId && <SubscriptionEditor agentId={targetAgentId} />}
+      </Drawer>
+
+      {/* Skills Drawer */}
+      <Drawer
+        open={drawerMode === "skills" && !!targetAgentId}
+        title={`Skills - ${targetAgent?.name ?? ""}`}
+        onClose={closeAll}
+      >
+        {drawerMode === "skills" && targetAgent && (
+          <SkillsEditor agentId={targetAgent.id} skills={targetAgent.skills || []} onSave={saveSkills} />
+        )}
+      </Drawer>
+
+      {/* MCP Drawer */}
+      <Drawer
+        open={drawerMode === "mcp" && !!targetAgentId}
+        title={`MCP 服务 - ${targetAgent?.name ?? ""}`}
+        onClose={closeAll}
+      >
+        {drawerMode === "mcp" && targetAgent && (
+          <McpEditor agentId={targetAgent.id} mcpServerIds={targetAgent.mcp_server_ids || []} onSave={saveMcp} />
+        )}
       </Drawer>
     </div>
   );

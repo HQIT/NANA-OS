@@ -15,7 +15,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.tables import Agent, LLMModel, EventLog
+from app.models.tables import Agent, LLMModel, EventLog, McpServer
 from app.services.docker_runner import (
     start_container,
     get_container_status,
@@ -33,6 +33,7 @@ def _build_event_task_config(
     event: CloudEvent,
     run_id: str,
     default_model: str = "",
+    mcp_config_path_override: str | None = None,
 ) -> dict[str, Any]:
     """根据 Agent 配置 + 事件内容生成 DiAgent task config。"""
     model_map = {m.name: m for m in llm_models}
@@ -78,8 +79,9 @@ def _build_event_task_config(
         task_section["system_prompt"] = agent.system_prompt
     if agent.skills:
         task_section["skill_names"] = agent.skills
-    if agent.mcp_config_path:
-        task_section["mcp_config_path"] = agent.mcp_config_path
+    mcp_path = mcp_config_path_override or getattr(agent, "mcp_config_path", None) or ""
+    if mcp_path:
+        task_section["mcp_config_path"] = mcp_path
 
     return {"models": models_section, "task": task_section}
 
@@ -144,9 +146,26 @@ async def dispatch_event(
         run_id = uuid.uuid4().hex[:12]
         workspace = Path(agent.workspace_path)
 
+        mcp_override = None
+        mcp_ids = getattr(agent, "mcp_server_ids", None) or []
+        if mcp_ids:
+            mcp_result = await db.execute(select(McpServer).where(McpServer.id.in_(mcp_ids)))
+            mcp_servers = list(mcp_result.scalars().all())
+            if mcp_servers:
+                mcp_list = [
+                    {"name": s.name, "command": s.command, "args": s.args or [], "env": s.env or {}}
+                    for s in mcp_servers
+                ]
+                config_dir = workspace / "config"
+                config_dir.mkdir(parents=True, exist_ok=True)
+                mcp_file = config_dir / f"mcp_servers_{run_id}.json"
+                mcp_file.write_text(json.dumps(mcp_list, ensure_ascii=False, indent=2), encoding="utf-8")
+                mcp_override = f"/workspace/config/mcp_servers_{run_id}.json"
+
         config = _build_event_task_config(
             agent, llm_models, event, run_id,
             default_model="",
+            mcp_config_path_override=mcp_override,
         )
 
         config_path = workspace / f"agent-task-{run_id}.json"

@@ -343,3 +343,28 @@ DiAgent 服务模式通过以下方式接收配置：
 4. **事件幂等性**：同一个 webhook 可能被重复投递，如何保证 Agent 不重复处理？
 
 5. **DiAgent 服务模式的会话管理**：事件触发的处理是否需要维护上下文？比如同一个 PR 的多轮 review 是否应该在同一个 session 中？
+
+---
+
+## 附录：Connector 与 MCP 的职责划分
+
+### Connector（事件源，入站）
+
+Connector 负责将外部事件接入 NANA-OS Event Gateway，产生 CloudEvent 并匹配订阅、触发 Agent。
+
+| 类型 | 接入方式 | 说明 |
+|------|----------|------|
+| `git_webhook` | Webhook（HTTP 回调） | 统一接入 GitHub/GitLab/Gitea 等平台，通过 `config.platform` 区分 |
+| `imap` | 轮询 | IMAP 轮询收取新邮件，产生 `email.received` 事件 |
+| `generic` | Webhook | 通用 HTTP Webhook 接入 |
+
+- 收邮件：配置 IMAP 类型的 Connector，NANA-OS 后台轮询拉取新邮件并生成事件。
+
+### MCP Server（Agent 工具，出站）
+
+MCP Server 为 Agent 在执行任务时提供可调用的外部工具，与事件接入无关。
+
+- 发邮件：配置一个 SMTP/SendGrid 类的 MCP Server，Agent 在任务中调用该 MCP 的 `send_email` 等工具完成发信。
+- 其他工具：文件系统、数据库查询、Slack 发消息等，均通过 MCP Server 提供。
+
+**总结：Connector = 入站事件源；MCP = Agent 执行时的出站工具。两者职责不重叠。**

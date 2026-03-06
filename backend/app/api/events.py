@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.db.database import get_db
-from app.models.tables import Subscription, EventLog
+from app.models.tables import Subscription, EventLog, Connector
 from app.models.schemas import EventLogOut
 from app.services.event_normalizer import (
     detect_and_normalize,
@@ -18,6 +18,28 @@ from app.services.event_router import match_subscriptions
 from app.services.event_dispatcher import dispatch_event
 
 router = APIRouter(prefix="/events", tags=["events"])
+
+
+async def _webhook_secrets(db: AsyncSession) -> dict[str, str]:
+    """优先从 Connector 表取 webhook secret，否则用 settings。"""
+    out = dict(settings.webhook_secrets)
+    result = await db.execute(
+        select(Connector).where(
+            Connector.enabled == True,  # noqa: E712
+            Connector.type.in_(["github", "gitlab", "gitea", "git_webhook"]),
+        )
+    )
+    for c in result.scalars().all():
+        secret = (c.config or {}).get("secret") or ""
+        if not secret:
+            continue
+        if c.type == "git_webhook":
+            platform = (c.config or {}).get("platform", "")
+            if platform:
+                out[platform] = secret
+        else:
+            out[c.type] = secret
+    return out
 
 
 class ManualEventBody(BaseModel):
@@ -41,9 +63,9 @@ async def receive_webhook(
         raise HTTPException(400, "Invalid JSON body")
 
     headers = dict(request.headers)
-
+    secrets = await _webhook_secrets(db)
     try:
-        event = detect_and_normalize(headers, payload, body, settings.webhook_secrets)
+        event = detect_and_normalize(headers, payload, body, secrets)
     except ValueError as e:
         raise HTTPException(403, str(e))
 
@@ -67,9 +89,29 @@ async def receive_webhook(
 
 
 @router.get("/catalog")
-async def event_catalog():
-    """返回系统支持的所有事件源和事件类型。"""
-    return get_event_catalog()
+async def event_catalog(db: AsyncSession = Depends(get_db)):
+    """返回系统支持的所有事件源和事件类型，附带各 source 的 Connector 配置状态。"""
+    catalog = get_event_catalog()
+
+    result = await db.execute(
+        select(Connector).where(Connector.enabled == True)  # noqa: E712
+    )
+    connectors = list(result.scalars().all())
+
+    configured: set[str] = set()
+    for c in connectors:
+        if c.type in ("git_webhook", "github", "gitlab", "gitea"):
+            configured.add("git")
+        elif c.type == "imap":
+            configured.add("email")
+        elif c.type == "generic":
+            configured.add("webhook")
+
+    configured.update(["manual", "cron"])
+
+    connector_status = {s["id"]: s["id"] in configured for s in catalog["sources"]}
+    catalog["connector_status"] = connector_status
+    return catalog
 
 
 @router.post("/manual")

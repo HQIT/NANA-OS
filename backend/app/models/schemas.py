@@ -53,6 +53,7 @@ class AgentCreate(BaseModel):
     system_prompt: str = ""
     skills: list[str] = []
     mcp_config_path: str = ""
+    mcp_server_ids: list[str] = []
     workspace_path: str = ""
 
 
@@ -65,6 +66,7 @@ class AgentUpdate(BaseModel):
     system_prompt: Optional[str] = None
     skills: Optional[list[str]] = None
     mcp_config_path: Optional[str] = None
+    mcp_server_ids: Optional[list[str]] = None
     workspace_path: Optional[str] = None
 
 
@@ -78,7 +80,62 @@ class AgentOut(BaseModel):
     system_prompt: str
     skills: list[str]
     mcp_config_path: str
+    mcp_server_ids: list[str]
     workspace_path: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Connector ──
+
+class ConnectorCreate(BaseModel):
+    type: str  # github, gitlab, gitea, imap, generic
+    name: str
+    enabled: bool = True
+    config: dict = {}
+
+
+class ConnectorUpdate(BaseModel):
+    type: Optional[str] = None
+    name: Optional[str] = None
+    enabled: Optional[bool] = None
+    config: Optional[dict] = None
+
+
+class ConnectorOut(BaseModel):
+    id: str
+    type: str
+    name: str
+    enabled: bool
+    config: dict
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── McpServer ──
+
+class McpServerCreate(BaseModel):
+    name: str
+    command: str
+    args: list = []
+    env: dict = {}
+
+
+class McpServerUpdate(BaseModel):
+    name: Optional[str] = None
+    command: Optional[str] = None
+    args: Optional[list] = None
+    env: Optional[dict] = None
+
+
+class McpServerOut(BaseModel):
+    id: str
+    name: str
+    command: str
+    args: list
+    env: dict
     created_at: datetime
 
     model_config = {"from_attributes": True}

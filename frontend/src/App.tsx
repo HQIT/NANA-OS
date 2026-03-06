@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import AgentList from "./components/AgentList";
 import ModelManager from "./components/ModelManager";
 import EventLogList from "./components/EventLogList";
+import ConnectorsPage from "./components/ConnectorsPage";
+import McpServersPage from "./components/McpServersPage";
 
-type GlobalTab = "agents" | "models" | "events";
-const VALID_TABS: GlobalTab[] = ["agents", "events", "models"];
+type GlobalTab = "agents" | "models" | "events" | "connectors" | "mcp";
+const VALID_TABS: GlobalTab[] = ["agents", "events", "models", "connectors", "mcp"];
 
 function readHash(): { tab: GlobalTab; sub: string } {
   const raw = window.location.hash.replace(/^#\/?/, "");
@@ -35,6 +37,8 @@ export default function App() {
           <button className={globalTab === "agents" ? "header-tab active" : "header-tab"} onClick={() => navigate("agents")}>Agents</button>
           <button className={globalTab === "events" ? "header-tab active" : "header-tab"} onClick={() => navigate("events")}>Events</button>
           <button className={globalTab === "models" ? "header-tab active" : "header-tab"} onClick={() => navigate("models")}>Models</button>
+          <button className={globalTab === "connectors" ? "header-tab active" : "header-tab"} onClick={() => navigate("connectors")}>Connectors</button>
+          <button className={globalTab === "mcp" ? "header-tab active" : "header-tab"} onClick={() => navigate("mcp")}>MCP</button>
         </nav>
       </header>
 
@@ -42,6 +46,8 @@ export default function App() {
         {globalTab === "agents" && <AgentList />}
         {globalTab === "events" && <EventLogList subTab={subHash === "logs" ? "logs" : "catalog"} onSubTabChange={(s: string) => navigate("events", s)} />}
         {globalTab === "models" && <ModelManager />}
+        {globalTab === "connectors" && <ConnectorsPage />}
+        {globalTab === "mcp" && <McpServersPage />}
       </div>
     </div>
   );

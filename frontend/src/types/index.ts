@@ -21,7 +21,26 @@ export interface Agent {
   system_prompt: string;
   skills: string[];
   mcp_config_path: string;
+  mcp_server_ids?: string[];
   workspace_path: string;
+  created_at: string;
+}
+
+export interface Connector {
+  id: string;
+  type: string;
+  name: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
   created_at: string;
 }
 
@@ -40,6 +59,7 @@ export interface EventCatalogType {
 export interface EventCatalog {
   sources: EventCatalogSource[];
   event_types: EventCatalogType[];
+  connector_status?: Record<string, boolean>;
 }
 
 export interface Subscription {

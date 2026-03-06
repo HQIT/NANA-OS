@@ -43,6 +43,7 @@ async def create_agent(body: AgentCreate, db: AsyncSession = Depends(get_db)):
         system_prompt=body.system_prompt,
         skills=body.skills,
         mcp_config_path=body.mcp_config_path,
+        mcp_server_ids=getattr(body, "mcp_server_ids", []) or [],
         workspace_path=workspace,
     )
     db.add(agent)

@@ -60,4 +60,28 @@ export const api = {
   getEventCatalog: () => request<import("../types").EventCatalog>("/events/catalog"),
   triggerManualEvent: (data: { event_type: string; source?: string; subject?: string; data?: Record<string, unknown> }) =>
     request<Record<string, unknown>>("/events/manual", { method: "POST", body: JSON.stringify(data) }),
+
+  // Connectors
+  listConnectors: () => request<import("../types").Connector[]>("/connectors"),
+  createConnector: (data: Record<string, unknown>) =>
+    request<import("../types").Connector>("/connectors", { method: "POST", body: JSON.stringify(data) }),
+  updateConnector: (id: string, data: Record<string, unknown>) =>
+    request<import("../types").Connector>(`/connectors/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteConnector: (id: string) => request<void>(`/connectors/${id}`, { method: "DELETE" }),
+
+  // Skills catalog
+  getSkillsCatalog: () =>
+    request<{ name: string; description: string; source: string }[]>("/skills/catalog"),
+
+  // MCP Registry search
+  searchMcpRegistry: (q: string, limit = 20) =>
+    request<{ servers: { name: string; description: string; version: string; command: string; args: string[]; env_hints: Record<string, string>; transport: string }[]; total: number }>(`/mcp-registry/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+
+  // MCP Servers
+  listMcpServers: () => request<import("../types").McpServer[]>("/mcp-servers"),
+  createMcpServer: (data: Record<string, unknown>) =>
+    request<import("../types").McpServer>("/mcp-servers", { method: "POST", body: JSON.stringify(data) }),
+  updateMcpServer: (id: string, data: Record<string, unknown>) =>
+    request<import("../types").McpServer>(`/mcp-servers/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteMcpServer: (id: string) => request<void>(`/mcp-servers/${id}`, { method: "DELETE" }),
 };
