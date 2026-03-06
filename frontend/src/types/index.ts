@@ -82,4 +82,9 @@ export interface EventLog {
   matched_agent_ids: string[];
   status: string;
   created_at: string;
+  retry_count?: number;
+  max_retries?: number;
+  next_retry_at?: string;
+  error_message?: string;
+  dedup_hash?: string;
 }

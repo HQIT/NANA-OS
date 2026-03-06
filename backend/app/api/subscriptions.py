@@ -8,8 +8,18 @@ from app.db.database import get_db
 from app.models.tables import Agent, Subscription
 from app.models.schemas import SubscriptionCreate, SubscriptionUpdate, SubscriptionOut
 
-router = APIRouter(prefix="/agents/{agent_id}/subscriptions", tags=["subscriptions"])
+router = APIRouter(tags=["subscriptions"])
 
+
+# ── 全局订阅列表（拓扑图用） ──
+
+@router.get("/subscriptions", response_model=list[SubscriptionOut])
+async def list_all_subscriptions(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Subscription).order_by(Subscription.created_at))
+    return result.scalars().all()
+
+
+# ── Per-agent CRUD ──
 
 async def _ensure_agent(agent_id: str, db: AsyncSession) -> Agent:
     agent = await db.get(Agent, agent_id)
@@ -18,7 +28,7 @@ async def _ensure_agent(agent_id: str, db: AsyncSession) -> Agent:
     return agent
 
 
-@router.get("", response_model=list[SubscriptionOut])
+@router.get("/agents/{agent_id}/subscriptions", response_model=list[SubscriptionOut])
 async def list_subscriptions(agent_id: str, db: AsyncSession = Depends(get_db)):
     await _ensure_agent(agent_id, db)
     result = await db.execute(
@@ -29,7 +39,7 @@ async def list_subscriptions(agent_id: str, db: AsyncSession = Depends(get_db)):
     return result.scalars().all()
 
 
-@router.post("", response_model=SubscriptionOut, status_code=201)
+@router.post("/agents/{agent_id}/subscriptions", response_model=SubscriptionOut, status_code=201)
 async def create_subscription(
     agent_id: str,
     body: SubscriptionCreate,
@@ -49,7 +59,7 @@ async def create_subscription(
     return sub
 
 
-@router.put("/{sub_id}", response_model=SubscriptionOut)
+@router.put("/agents/{agent_id}/subscriptions/{sub_id}", response_model=SubscriptionOut)
 async def update_subscription(
     agent_id: str,
     sub_id: str,
@@ -67,7 +77,7 @@ async def update_subscription(
     return sub
 
 
-@router.delete("/{sub_id}", status_code=204)
+@router.delete("/agents/{agent_id}/subscriptions/{sub_id}", status_code=204)
 async def delete_subscription(
     agent_id: str,
     sub_id: str,

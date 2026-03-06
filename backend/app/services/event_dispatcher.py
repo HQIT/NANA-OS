@@ -1,6 +1,7 @@
 """事件投递：为匹配的 Agent 生成 task config 并启动 DiAgent 容器。
 
 Phase 1 使用 task 模式（一次性容器），复用现有 docker_runner。
+支持重试机制和事件去重。
 """
 
 from __future__ import annotations
@@ -8,13 +9,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.tables import Agent, LLMModel, EventLog, McpServer
 from app.services.docker_runner import (
     start_container,
@@ -22,7 +26,8 @@ from app.services.docker_runner import (
     get_container_exit_code,
     remove_container,
 )
-from app.services.event_normalizer import CloudEvent
+from app.services.event_normalizer import CloudEvent, compute_dedup_hash
+from app.services.metrics import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -104,23 +109,85 @@ async def dispatch_event(
     event: CloudEvent,
     agent_ids: list[str],
     db: AsyncSession,
-) -> tuple[EventLog, str | None]:
-    """将事件投递给匹配的 Agent 列表，创建 EventLog 记录。"""
-    event_log = EventLog(
-        source=event.get("source", ""),
-        event_type=event.get("type", ""),
-        subject=event.get("subject", ""),
-        cloud_event=event,
-        matched_agent_ids=agent_ids,
-        status="received",
-    )
-    db.add(event_log)
-    await db.commit()
-    await db.refresh(event_log)
+    is_retry: bool = False,
+    original_log_id: str | None = None,
+) -> tuple[EventLog | None, str | None]:
+    """将事件投递给匹配的 Agent 列表，创建 EventLog 记录。
+    
+    Args:
+        event: CloudEvent 格式的事件
+        agent_ids: 匹配的 Agent ID 列表
+        db: 数据库会话
+        is_retry: 是否为重试操作（跳过去重检查）
+        original_log_id: 原始事件 log ID（重试时使用）
+    
+    Returns:
+        (EventLog, error_message) 或 (None, error) 如果是去重
+    """
+    start_time = time.time()
+    event_type = event.get("type", "")
+    
+    # 记录指标
+    metrics.record_event_received(event_type)
+    if is_retry:
+        metrics.record_retry()
+    
+    # 1. 去重检查（非重试操作才检查）
+    dedup_hash = compute_dedup_hash(event)
+    
+    if not is_retry and getattr(settings, "event_dedup_enabled", True):
+        # 检查去重排除列表
+        exclude_types = getattr(settings, "event_dedup_exclude_types", ["cron.tick", "manual.trigger"])
+        if event_type not in exclude_types:
+            # 查询最近时间窗口内是否有重复事件
+            dedup_window_hours = getattr(settings, "event_dedup_window_hours", 1)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=dedup_window_hours)
+            
+            existing = await db.execute(
+                select(EventLog).where(
+                    EventLog.dedup_hash == dedup_hash,
+                    EventLog.created_at > cutoff_time,
+                ).limit(1)
+            )
+            
+            duplicate = existing.scalar_one_or_none()
+            if duplicate:
+                logger.info(
+                    "Duplicate event detected (hash=%s), original event_id=%s",
+                    dedup_hash[:8], duplicate.id
+                )
+                metrics.record_dedup()
+                return None, f"Duplicate of event {duplicate.id}"
+    
+    # 2. 创建 EventLog 记录（如果是重试，更新原记录而不是创建新记录）
+    if is_retry and original_log_id:
+        event_log = await db.get(EventLog, original_log_id)
+        if not event_log:
+            logger.error("Original event log %s not found for retry", original_log_id)
+            return None, "Original event log not found"
+    else:
+        event_log = EventLog(
+            source=event.get("source", ""),
+            event_type=event_type,
+            subject=event.get("subject", ""),
+            cloud_event=event,
+            matched_agent_ids=agent_ids,
+            status="received",
+            dedup_hash=dedup_hash,
+            retry_count=0,
+            max_retries=getattr(settings, "event_max_retries", 3),
+            next_retry_at=datetime.now(timezone.utc) + timedelta(minutes=1),
+        )
+        db.add(event_log)
+        await db.commit()
+        await db.refresh(event_log)
 
     if not agent_ids:
+        event_log.status = "dispatched"  # 无匹配 Agent，视为完成
+        await db.commit()
         return event_log, None
 
+    # 3. 获取 Agent 和模型信息
     agents_result = await db.execute(
         select(Agent).where(Agent.id.in_(agent_ids))
     )
@@ -129,8 +196,10 @@ async def dispatch_event(
     models_result = await db.execute(select(LLMModel))
     llm_models = list(models_result.scalars().all())
 
+    # 4. 逐个投递给 Agent
     dispatched = False
     reasons: list[str] = []
+    
     for agent_id in agent_ids:
         agent = agents.get(agent_id)
         if not agent:
@@ -146,6 +215,7 @@ async def dispatch_event(
         run_id = uuid.uuid4().hex[:12]
         workspace = Path(agent.workspace_path)
 
+        # 生成 MCP 配置
         mcp_override = None
         mcp_ids = getattr(agent, "mcp_server_ids", None) or []
         if mcp_ids:
@@ -162,6 +232,7 @@ async def dispatch_event(
                 mcp_file.write_text(json.dumps(mcp_list, ensure_ascii=False, indent=2), encoding="utf-8")
                 mcp_override = f"/workspace/config/mcp_servers_{run_id}.json"
 
+        # 生成任务配置
         config = _build_event_task_config(
             agent, llm_models, event, run_id,
             default_model="",
@@ -180,6 +251,7 @@ async def dispatch_event(
             logger.exception("Write config failed for agent %s", agent_id)
             continue
 
+        # 启动容器
         try:
             container_id = start_container(run_id, workspace)
             asyncio.create_task(_poll_event_container(run_id, container_id))
@@ -192,8 +264,18 @@ async def dispatch_event(
             reasons.append(f"Agent {agent_id}: {type(e).__name__}: {e}")
             logger.exception("Failed to dispatch event to agent %s", agent_id)
 
+    # 5. 更新状态
     event_log.status = "dispatched" if dispatched else "failed"
+    error_detail = "; ".join(reasons) if reasons else None
+    
+    if not dispatched:
+        event_log.error_message = error_detail or "Failed to dispatch to any agent"
+    
     await db.commit()
     await db.refresh(event_log)
-    error_detail = "; ".join(reasons) if reasons else None
+    
+    # 6. 记录性能指标
+    duration = time.time() - start_time
+    metrics.record_dispatch(duration, dispatched, agent_ids)
+    
     return event_log, error_detail

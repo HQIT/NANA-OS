@@ -183,5 +183,10 @@ class EventLogOut(BaseModel):
     matched_agent_ids: list[str]
     status: str
     created_at: datetime
+    retry_count: int = 0
+    max_retries: int = 3
+    next_retry_at: Optional[datetime] = None
+    error_message: str = ""
+    dedup_hash: str = ""
 
     model_config = {"from_attributes": True}

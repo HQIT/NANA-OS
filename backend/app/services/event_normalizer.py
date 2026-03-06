@@ -36,6 +36,48 @@ def _make_event(
     }
 
 
+def compute_dedup_hash(event: CloudEvent) -> str:
+    """基于事件特征生成去重哈希。
+    
+    不同类型事件使用不同的特征：
+    - Git 事件：仓库 + PR/Issue 编号 + 动作
+    - 邮件事件：Message-ID（如有）
+    - 通用事件：source + type + subject
+    """
+    event_type = event.get("type", "")
+    data = event.get("data", {})
+    
+    # Git 类事件：使用仓库 + PR/Issue 编号 + 动作
+    if event_type.startswith("git."):
+        repo = data.get("repository", {})
+        repo_name = repo.get("full_name", "") if isinstance(repo, dict) else ""
+        key_parts = [
+            event.get("source", ""),
+            event_type,
+            repo_name,
+            str(data.get("number", "")),  # PR/Issue 编号
+            str(data.get("action", "")),
+        ]
+    # 邮件事件：使用 Message-ID
+    elif event_type.startswith("email."):
+        key_parts = [
+            event.get("source", ""),
+            event_type,
+            str(data.get("message_id", "")),
+            str(data.get("subject", "")),
+        ]
+    # 通用事件：使用 source + type + subject
+    else:
+        key_parts = [
+            event.get("source", ""),
+            event_type,
+            event.get("subject", ""),
+        ]
+    
+    content = "|".join(str(p) for p in key_parts if p)
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
 # ── Base Normalizer ──
 
 

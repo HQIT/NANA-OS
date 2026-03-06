@@ -21,12 +21,20 @@ export default function AgentList() {
   const [drawerMode, setDrawerMode] = useState<DrawerMode | null>(null);
   const [targetAgentId, setTargetAgentId] = useState<string | null>(null);
   const [filterGroup, setFilterGroup] = useState("");
+  const [viewMode, setViewMode] = useState<'grid' | 'grouped'>('grid');
 
   const load = () => api.listAgents().then(setAgents);
   useEffect(() => { load(); }, []);
 
   const groups = [...new Set(agents.map((a) => a.group).filter(Boolean))];
   const filtered = filterGroup ? agents.filter((a) => a.group === filterGroup) : agents;
+  
+  // 按分组组织 Agent
+  const grouped = agents.reduce<Record<string, Agent[]>>((acc, agent) => {
+    const group = agent.group || '未分组';
+    (acc[group] ||= []).push(agent);
+    return acc;
+  }, {});
 
   const closeAll = () => {
     setEditing(null);
@@ -94,44 +102,80 @@ export default function AgentList() {
   };
 
   const targetAgent = agents.find((a) => a.id === targetAgentId);
+  
+  const renderAgentCard = (a: Agent) => (
+    <div key={a.id} className="entity-card" onClick={() => startEdit(a)}>
+      <div className="entity-card-header">
+        <span className="entity-card-name">{a.name}</span>
+        {a.group && <span className="entity-card-tag">{a.group}</span>}
+      </div>
+      {a.description && <p className="entity-card-desc">{a.description}</p>}
+      <div className="entity-card-meta">
+        <span>{a.model || "default model"}</span>
+        {(a.skills?.length || 0) > 0 && <span>Skills: {a.skills!.length}</span>}
+        {(a.mcp_server_ids?.length || 0) > 0 && <span>MCP: {a.mcp_server_ids!.length}</span>}
+      </div>
+      <div className="entity-card-actions">
+        <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "subscriptions"); }}>订阅</button>
+        <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "skills"); }}>Skills</button>
+        <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "mcp"); }}>MCP</button>
+        <button className="btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}>删除</button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="panel">
-      {groups.length > 0 && (
-        <div className="panel-toolbar">
+      <div className="panel-toolbar" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {groups.length > 0 && (
           <select value={filterGroup} onChange={(e) => setFilterGroup(e.target.value)} style={{ fontSize: 13, maxWidth: 160 }}>
             <option value="">全部分组</option>
             {groups.map((g) => <option key={g} value={g}>{g}</option>)}
           </select>
+        )}
+        <select value={viewMode} onChange={(e) => setViewMode(e.target.value as any)} style={{ fontSize: 13, maxWidth: 120 }}>
+          <option value="grid">网格视图</option>
+          <option value="grouped">分组视图</option>
+        </select>
+      </div>
+
+      {viewMode === 'grid' && (
+        <div className="card-grid">
+          <div className="entity-card add-card" onClick={() => startEdit()}>
+            <span className="add-card-icon">+</span>
+            <span className="add-card-label">添加 Agent</span>
+          </div>
+          {filtered.map(renderAgentCard)}
         </div>
       )}
 
-      <div className="card-grid">
-        <div className="entity-card add-card" onClick={() => startEdit()}>
-          <span className="add-card-icon">+</span>
-          <span className="add-card-label">添加 Agent</span>
+      {viewMode === 'grouped' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {Object.entries(grouped).map(([groupName, groupAgents]) => (
+            <div key={groupName}>
+              <h3 style={{ 
+                fontSize: '14px', 
+                fontWeight: 600, 
+                marginBottom: '12px',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                {groupName}
+                <span style={{ fontSize: '12px', opacity: 0.7 }}>({groupAgents.length})</span>
+              </h3>
+              <div className="card-grid">
+                <div className="entity-card add-card" onClick={() => startEdit()}>
+                  <span className="add-card-icon">+</span>
+                  <span className="add-card-label">添加 Agent</span>
+                </div>
+                {groupAgents.map(renderAgentCard)}
+              </div>
+            </div>
+          ))}
         </div>
-        {filtered.map((a) => (
-          <div key={a.id} className="entity-card" onClick={() => startEdit(a)}>
-            <div className="entity-card-header">
-              <span className="entity-card-name">{a.name}</span>
-              {a.group && <span className="entity-card-tag">{a.group}</span>}
-            </div>
-            {a.description && <p className="entity-card-desc">{a.description}</p>}
-            <div className="entity-card-meta">
-              <span>{a.model || "default model"}</span>
-              {(a.skills?.length || 0) > 0 && <span>Skills: {a.skills!.length}</span>}
-              {(a.mcp_server_ids?.length || 0) > 0 && <span>MCP: {a.mcp_server_ids!.length}</span>}
-            </div>
-            <div className="entity-card-actions">
-              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "subscriptions"); }}>订阅</button>
-              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "skills"); }}>Skills</button>
-              <button className="btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); openDrawer(a.id, "mcp"); }}>MCP</button>
-              <button className="btn-sm btn-danger" onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}>删除</button>
-            </div>
-          </div>
-        ))}
-      </div>
+      )}
 
       {/* 基础信息 Drawer */}
       <Drawer open={drawerMode === "edit"} title={editId ? "编辑 Agent" : "添加 Agent"} onClose={closeAll}>

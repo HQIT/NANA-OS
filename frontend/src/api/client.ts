@@ -35,6 +35,8 @@ export const api = {
     request<void>(`/agents/${agentId}`, { method: "DELETE" }),
 
   // Subscriptions
+  listAllSubscriptions: () =>
+    request<import("../types").Subscription[]>("/subscriptions"),
   listSubscriptions: (agentId: string) =>
     request<import("../types").Subscription[]>(`/agents/${agentId}/subscriptions`),
   createSubscription: (agentId: string, data: Record<string, unknown>) =>
@@ -45,16 +47,19 @@ export const api = {
     request<void>(`/agents/${agentId}/subscriptions/${subId}`, { method: "DELETE" }),
 
   // Events
-  listEvents: (params?: { source?: string; event_type?: string; status?: string; limit?: number }) => {
+  listEvents: (params?: { source?: string; event_type?: string; status?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     if (params?.source) q.set("source", params.source);
     if (params?.event_type) q.set("event_type", params.event_type);
     if (params?.status) q.set("status", params.status);
     if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset !== undefined) q.set("offset", String(params.offset));
     const qs = q.toString();
-    return request<import("../types").EventLog[]>(`/events${qs ? `?${qs}` : ""}`);
+    return request<{ items: import("../types").EventLog[]; total: number; limit: number; offset: number }>(`/events${qs ? `?${qs}` : ""}`);
   },
   getEvent: (eventId: string) => request<import("../types").EventLog>(`/events/${eventId}`),
+  retryEvent: (eventId: string) => 
+    request<{ message: string; event_id: string }>(`/events/${eventId}/retry`, { method: "POST" }),
 
   // Event Catalog & Manual Trigger
   getEventCatalog: () => request<import("../types").EventCatalog>("/events/catalog"),

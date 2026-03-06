@@ -99,5 +99,14 @@ class EventLog(Base):
     subject: Mapped[str] = mapped_column(String(256), default="")
     cloud_event: Mapped[dict] = mapped_column(JSON, nullable=False)
     matched_agent_ids: Mapped[list] = mapped_column(JSON, default=list)
-    status: Mapped[str] = mapped_column(String(16), default="received")
+    status: Mapped[str] = mapped_column(String(16), default="received")  # received, dispatching, dispatched, failed, dead_letter
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    
+    # 重试机制字段
+    retry_count: Mapped[int] = mapped_column(default=0)
+    max_retries: Mapped[int] = mapped_column(default=3)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    
+    # 幂等性去重字段
+    dedup_hash: Mapped[str] = mapped_column(String(64), index=True, default="")

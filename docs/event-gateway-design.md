@@ -1,8 +1,26 @@
 # NANA-OS Event Gateway 设计文档
 
-> 状态：Draft  
-> 日期：2026-03-05  
-> 目的：与 DiAgent 团队对齐事件驱动多智能体协作的架构设计
+> **状态**：已实现核心功能（Phase 1 & 2）  
+> **版本**：v0.1 (Task Mode)  
+> **最后更新**：2026-03-06  
+> **目的**：事件驱动多智能体协作的架构设计与实现进度跟踪
+
+## 实现状态概览
+
+✅ **已完成**：
+- Webhook 接收与路由（GitHub/GitLab/Gitea/Generic）
+- 事件标准化（CloudEvents 格式）
+- 订阅管理与匹配
+- IMAP 邮件轮询
+- 事件投递（task 模式）
+
+🚧 **进行中/待实现**：
+- DiAgent 服务模式（需要 DiAgent 侧实现 `/v1/events` API）
+- 事件投递重试与死信队列
+- 事件幂等性处理
+
+❌ **已取消**：
+- n8n 集成计划（不再考虑）
 
 ---
 
@@ -293,56 +311,93 @@ DiAgent 服务模式通过以下方式接收配置：
 
 ---
 
-## 6. 实现路径
+## 6. 实现进度
+
+> 更新日期：2026-03-06
 
 ### Phase 1：基础可用（先跑通 Git 场景）
 
-**DiAgent 侧**：
+**DiAgent 侧**（待实现）：
 - [ ] 实现 `app/api/routes/` — chat、events、sessions 路由
 - [ ] 发布服务模式 Docker 镜像 `agent-service`
 
-**NANA-OS 侧**：
-- [ ] 简化数据模型：去掉 Team/Run，Agent 成为核心实体
-- [ ] Agent CRUD + 容器生命周期管理（启动/停止服务模式容器）
-- [ ] Webhook Receiver：`POST /api/events/webhook/{source}`
-- [ ] GitHub 事件标准化（GitHub webhook payload → CloudEvents）
-- [ ] 订阅配置 + 路由逻辑
-- [ ] 事件投递（HTTP POST 到 Agent 容器）
+**NANA-OS 侧**（大部分已完成）：
+- [x] 简化数据模型：Agent 成为核心实体（已去掉 Team 概念）
+- [x] Agent CRUD API
+- [ ] **容器生命周期管理（服务模式常驻）** — 当前仍使用 task 模式（一次性容器）
+- [x] Webhook Receiver：`POST /api/events/webhook/{source}`
+- [x] GitHub/GitLab/Gitea 事件标准化（转换为 CloudEvents 格式）
+- [x] 订阅配置 CRUD + 路由逻辑
+- [x] 事件投递（当前投递到一次性容器，非常驻服务）
 
-### Phase 2：丰富事件源
+**现状说明**：当前实现使用 task 模式（为每个事件启动一次性容器），核心功能已可用。升级到服务模式需要 DiAgent 侧配合实现常驻 HTTP API。
 
-- [ ] Email 事件接入（IMAP 轮询或 SendGrid webhook）
-- [ ] 通用 HTTP webhook 支持
-- [ ] Webhook 签名验证（GitHub secret、GitLab token）
-- [ ] 事件投递重试 + 死信队列
+### Phase 2：丰富事件源（大部分已完成）
 
-### Phase 3：可选 — n8n 集成
+- [x] Email 事件接入（IMAP 轮询）
+- [x] 通用 HTTP webhook 支持（GenericNormalizer）
+- [x] Webhook 签名验证（GitHub/GitLab/Gitea secret）
+- [ ] **事件投递重试 + 死信队列**（待实现，当前无重试机制）
 
-当内置连接器不够用时，引入 n8n 作为可选的 Event Gateway 后端：
-- [ ] n8n 作为 Docker Compose 可选服务
-- [ ] NANA-OS 通过 n8n REST API 管理 workflow
-- [ ] n8n UI 不暴露给最终用户，仅 NANA-OS 后台调用
+### Phase 3：增强与优化
+
+未来可优化项：
+- [ ] 事件投递重试机制与死信队列
+- [ ] 服务模式容器管理（热重载配置、健康检查）
+- [ ] 事件幂等性处理（防止重复投递）
+- [ ] 事件日志查询与过滤优化
+- [ ] 性能监控与告警
 
 ---
 
-## 7. 开放问题（待讨论）
+## 7. 关键决策与待讨论问题
 
-1. **DiAgent 服务模式的事件处理模型**：收到事件后，DiAgent 如何决定做什么？
+> 更新日期：2026-03-06
+
+### 已决策事项
+
+1. **✅ Agent 间通信方式**
+   - **当前实现**：每个事件触发独立的一次性容器，Agent 之间无直接通信
+   - **未来方向**：服务模式下，Agent 容器在同一 Docker 网络中直接通信（低延迟）
+
+2. **✅ 凭证管理**
+   - **当前实现**：通过环境变量注入 DiAgent 容器
+   - **存储位置**：Connector 配置中存储（如 IMAP 密码、webhook secret）
+
+3. **✅ 事件标准化格式**
+   - **采用方案**：CloudEvents 1.0 规范
+   - **已实现平台**：GitHub、GitLab、Gitea、Email、Generic Webhook
+
+### 待讨论/待实现问题
+
+1. **DiAgent 服务模式的事件处理模型**（需要 DiAgent 侧实现）
+   收到事件后，DiAgent 如何决定做什么？
    - 方案 A：事件内容作为 user message 传给 agent，由 LLM 决定
    - 方案 B：事件类型映射到预定义的处理逻辑（skills）
    - 方案 C：混合——先匹配 skill，没有匹配的交给 LLM
+   
+   **建议**：采用方案 C，提供灵活性同时保证效率
 
-2. **Agent 间通信**：Agent A 调用 Agent B 是走 NANA-OS 代理，还是直接 HTTP/MCP？
-   - 方案 A：通过 NANA-OS API Gateway 代理（统一管理、可监控）
-   - 方案 B：Agent 容器在同一 Docker 网络，直接通信（低延迟）
+2. **事件幂等性处理**
+   同一个 webhook 可能被重复投递，如何保证不重复处理？
+   - 方案 A：基于 `event.id` 去重（需要维护已处理事件 ID 索引）
+   - 方案 B：基于事件特征哈希去重（如 PR number + action）
+   - 方案 C：交给 Agent 自己处理（通过 workspace 状态判断）
+   
+   **当前状态**：未实现，依赖 Agent 自身逻辑
 
-3. **凭证管理**：Agent 操作 Git/Email 需要凭证，如何安全注入？
-   - 方案 A：NANA-OS 管理凭证，通过环境变量注入容器
-   - 方案 B：NANA-OS 运行一个 secret store（如 Vault），Agent 按需获取
+3. **DiAgent 服务模式的会话管理**
+   事件触发的处理是否需要维护上下文？
+   - 示例：同一个 PR 的多轮 review 是否应该在同一个 session 中？
+   - 需要考虑：内存开销、上下文长度限制、状态持久化
+   
+   **当前状态**：task 模式无状态，每个事件独立处理
 
-4. **事件幂等性**：同一个 webhook 可能被重复投递，如何保证 Agent 不重复处理？
-
-5. **DiAgent 服务模式的会话管理**：事件触发的处理是否需要维护上下文？比如同一个 PR 的多轮 review 是否应该在同一个 session 中？
+4. **事件投递重试机制**
+   容器启动失败或执行错误时如何处理？
+   - 需要实现：指数退避重试、最大重试次数、死信队列
+   
+   **当前状态**：未实现，投递失败仅记录日志
 
 ---
 

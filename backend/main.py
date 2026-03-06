@@ -7,6 +7,7 @@ from app.db.database import init_db
 from app.api import models, agents, events, subscriptions, connectors, mcp_servers, skills, mcp_registry
 from app.services.cron_scheduler import cron_scheduler
 from app.services.imap_poller import imap_poller
+from app.services.event_retry_worker import retry_worker
 
 
 @asynccontextmanager
@@ -14,7 +15,9 @@ async def lifespan(app: FastAPI):
     await init_db()
     await cron_scheduler.start()
     await imap_poller.start()
+    retry_worker.start()
     yield
+    retry_worker.stop()
     await imap_poller.stop()
     await cron_scheduler.stop()
 

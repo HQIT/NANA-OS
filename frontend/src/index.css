@@ -16,6 +16,40 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Toggle Switch */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 34px;
+  min-width: 34px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: var(--border);
+  border-radius: 9px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+input[type="checkbox"]::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+input[type="checkbox"]:checked {
+  background: var(--color-primary);
+}
+input[type="checkbox"]:checked::after {
+  transform: translateX(16px);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -188,7 +222,8 @@ button:hover { opacity: 0.9; }
 .entity-card-actions {
   display: flex;
   gap: 6px;
-  margin-top: 2px;
+  margin-top: auto;
+  padding-top: 4px;
 }
 .mcp-multi-select { display: flex; flex-wrap: wrap; gap: 8px; }
 .mcp-option { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
@@ -608,4 +643,213 @@ details summary {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  border-top-color: var(--color-primary);
+  animation: spin 0.8s linear infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Topology Page ─── */
+
+.topo-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 100px);
+  background: var(--bg);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.topo-loading, .topo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-secondary);
+}
+
+/* Custom Nodes */
+.topo-node {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  min-width: 180px;
+  font-size: 13px;
+  color: var(--text);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.topo-node:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(108, 142, 239, 0.15);
+}
+
+.topo-connector { border-left: 3px solid var(--color-success); }
+.topo-agent { border-left: 3px solid var(--color-primary); }
+.topo-disabled { opacity: 0.55; }
+
+.topo-node-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-hover);
+  color: var(--color-info);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.topo-node-label {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.topo-node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.topo-node-tag {
+  font-size: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.topo-node-status {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.topo-node-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  gap: 8px;
+}
+
+/* React Flow overrides */
+.react-flow__node { cursor: pointer; }
+.react-flow__edge { cursor: pointer; }
+.react-flow__edge-text { font-size: 11px; fill: var(--text-secondary); }
+.react-flow__edge-textbg { fill: var(--bg); }
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary);
+  border: 2px solid var(--bg-surface);
+}
+.react-flow__controls button {
+  background: var(--bg-surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+  fill: var(--text) !important;
+}
+.react-flow__controls button:hover {
+  background: var(--bg-hover) !important;
+}
+.react-flow__minimap {
+  border-radius: var(--radius);
+}
+
+/* Detail / Edit Panel (overlay right) */
+.topo-detail-panel, .topo-panel-form {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 340px;
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  z-index: 10;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.topo-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.topo-detail-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.topo-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topo-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.topo-detail-label {
+  color: var(--text-secondary);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.topo-panel-form h4 {
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.topo-panel-form label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+.topo-panel-form select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.btn-danger {
+  background: var(--color-danger) !important;
+  color: #fff !important;
+}
+.btn-danger:hover {
+  opacity: 0.85;
 }

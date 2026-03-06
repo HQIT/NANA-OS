@@ -4,9 +4,10 @@ import ModelManager from "./components/ModelManager";
 import EventLogList from "./components/EventLogList";
 import ConnectorsPage from "./components/ConnectorsPage";
 import McpServersPage from "./components/McpServersPage";
+import TopologyPage from "./components/TopologyPage";
 
-type GlobalTab = "agents" | "models" | "events" | "connectors" | "mcp";
-const VALID_TABS: GlobalTab[] = ["agents", "events", "models", "connectors", "mcp"];
+type GlobalTab = "agents" | "models" | "events" | "connectors" | "mcp" | "topology";
+const VALID_TABS: GlobalTab[] = ["agents", "events", "models", "connectors", "mcp", "topology"];
 
 function readHash(): { tab: GlobalTab; sub: string } {
   const raw = window.location.hash.replace(/^#\/?/, "");
@@ -39,6 +40,7 @@ export default function App() {
           <button className={globalTab === "models" ? "header-tab active" : "header-tab"} onClick={() => navigate("models")}>Models</button>
           <button className={globalTab === "connectors" ? "header-tab active" : "header-tab"} onClick={() => navigate("connectors")}>Connectors</button>
           <button className={globalTab === "mcp" ? "header-tab active" : "header-tab"} onClick={() => navigate("mcp")}>MCP</button>
+          <button className={globalTab === "topology" ? "header-tab active" : "header-tab"} onClick={() => navigate("topology")}>Topology</button>
         </nav>
       </header>
 
@@ -48,6 +50,7 @@ export default function App() {
         {globalTab === "models" && <ModelManager />}
         {globalTab === "connectors" && <ConnectorsPage />}
         {globalTab === "mcp" && <McpServersPage />}
+        {globalTab === "topology" && <TopologyPage />}
       </div>
     </div>
   );

@@ -146,24 +146,49 @@ async def trigger_manual_event(
     }
 
 
-@router.get("", response_model=list[EventLogOut])
+@router.get("", response_model=dict)
 async def list_events(
     source: str | None = Query(None),
     event_type: str | None = Query(None),
     status: str | None = Query(None),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    """查询事件日志。"""
-    query = select(EventLog).order_by(EventLog.created_at.desc()).limit(limit)
+    """查询事件日志，支持分页。"""
+    from sqlalchemy import func
+    
+    # 构建基础查询
+    filters = []
     if source:
-        query = query.where(EventLog.source.contains(source))
+        filters.append(EventLog.source.contains(source))
     if event_type:
-        query = query.where(EventLog.event_type == event_type)
+        filters.append(EventLog.event_type == event_type)
     if status:
-        query = query.where(EventLog.status == status)
+        filters.append(EventLog.status == status)
+    
+    # 查总数
+    count_stmt = select(func.count(EventLog.id))
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar_one()
+    
+    # 查数据
+    query = select(EventLog).order_by(EventLog.created_at.desc())
+    if filters:
+        query = query.where(*filters)
+    query = query.limit(limit).offset(offset)
+    
     result = await db.execute(query)
-    return result.scalars().all()
+    items = result.scalars().all()
+    
+    return {
+        "items": [EventLogOut.model_validate(item) for item in items],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{event_id}", response_model=EventLogOut)
@@ -172,3 +197,32 @@ async def get_event(event_id: str, db: AsyncSession = Depends(get_db)):
     if not event_log:
         raise HTTPException(404, "Event not found")
     return event_log
+
+
+@router.post("/{event_id}/retry")
+async def retry_event_manually(event_id: str, db: AsyncSession = Depends(get_db)):
+    """手动重试失败的事件（运维操作）"""
+    from datetime import datetime, timezone
+    
+    event_log = await db.get(EventLog, event_id)
+    if not event_log:
+        raise HTTPException(404, "Event not found")
+    
+    if event_log.status not in ("failed", "dead_letter"):
+        raise HTTPException(400, f"Event is not in failed state (current: {event_log.status})")
+    
+    # 重置重试计数，重新投递
+    event_log.retry_count = 0
+    event_log.status = "failed"
+    event_log.next_retry_at = datetime.now(timezone.utc)
+    event_log.error_message = ""
+    await db.commit()
+    
+    return {"message": "Event scheduled for retry", "event_id": event_id}
+
+
+@router.get("/system/metrics")
+async def get_metrics():
+    """返回系统运行指标"""
+    from app.services.metrics import metrics
+    return metrics.get_summary()
