@@ -16,7 +16,7 @@ interface RegistryServer {
 export default function McpServersPage() {
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [mcpEdit, setMcpEdit] = useState<Partial<McpServer> | null>(null);
-  const [envPairs, setEnvPairs] = useState<{ key: string; value: string }[]>([]);
+  const [envPairs, setEnvPairs] = useState<{ key: string; value: string; hint?: string }[]>([]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<RegistryServer[]>([]);
@@ -27,7 +27,7 @@ export default function McpServersPage() {
   useEffect(() => { load(); }, []);
 
   const envToList = (env: Record<string, string>) =>
-    Object.entries(env || {}).map(([key, value]) => ({ key, value }));
+    Object.entries(env || {}).map(([key, value]) => ({ key, value, hint: "" }));
   const listToEnv = (pairs: { key: string; value: string }[]) =>
     Object.fromEntries(pairs.filter((p) => p.key.trim()).map((p) => [p.key, p.value]));
 
@@ -72,16 +72,13 @@ export default function McpServersPage() {
 
   const addFromRegistry = (srv: RegistryServer) => {
     const hints = srv.env_hints || {};
-    const envInit = Object.fromEntries(
-      Object.entries(hints).map(([k]) => [k, ""]),
-    );
     setMcpEdit({
       name: srv.name.split("/").pop() || srv.name,
       command: srv.command,
       args: srv.args || [],
-      env: envInit,
+      env: Object.fromEntries(Object.entries(hints).map(([k]) => [k, ""])),
     });
-    setEnvPairs(Object.entries(hints).map(([key]) => ({ key, value: "" })));
+    setEnvPairs(Object.entries(hints).map(([key, desc]) => ({ key, value: "", hint: desc })));
   };
 
   const updateArg = (idx: number, val: string) => {
@@ -115,44 +112,58 @@ export default function McpServersPage() {
   return (
     <div className="panel">
       <p className="text-muted" style={{ marginBottom: 12 }}>
-        MCP 为 Agent 执行任务时提供的工具（如文件、API、发邮件等），与事件来源无关。
+        MCP servers provide tools for Agents (e.g. filesystem, API, email), separate from event sources.
       </p>
 
-      {/* Registry 搜索区 */}
+      {/* Registry Search */}
       <div className="registry-search">
-        <h4 className="catalog-section-title">从 MCP Registry 添加</h4>
+        <h4 className="catalog-section-title">Search MCP Registry</h4>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <input
             style={{ flex: 1 }}
-            placeholder="搜索 MCP 服务，如 filesystem、github、slack ..."
+            placeholder="Search MCP servers, e.g. filesystem, github, slack ..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") doSearch(); }}
           />
           <button className="btn-sm" onClick={doSearch} disabled={searching}>
-            {searching ? "搜索中..." : "搜索"}
+            {searching ? "Searching..." : "Search"}
           </button>
         </div>
         {searchResults.length > 0 && (
           <div className="registry-results">
-            {searchResults.map((srv) => (
-              <div key={srv.name + srv.version} className="registry-result-item">
-                <div className="registry-result-info">
-                  <span className="registry-result-name">{srv.name}</span>
-                  <span className="registry-result-desc">{srv.description}</span>
+            {searchResults.map((srv) => {
+              const hasCmd = !!srv.command;
+              return (
+                <div key={srv.name + srv.version} className="registry-result-item">
+                  <div className="registry-result-info">
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="registry-result-name">{srv.name}</span>
+                      <span className={`transport-badge ${hasCmd ? "transport-stdio" : "transport-remote"}`}>
+                        {srv.transport || "stdio"}
+                      </span>
+                      {srv.version && <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>v{srv.version}</span>}
+                    </div>
+                    <span className="registry-result-desc">{srv.description}</span>
+                    {hasCmd && <span className="registry-result-cmd">{srv.command} {srv.args.join(" ")}</span>}
+                  </div>
+                  {hasCmd ? (
+                    <button className="btn-sm" onClick={() => addFromRegistry(srv)}>Add</button>
+                  ) : (
+                    <span className="text-muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>Remote only</span>
+                  )}
                 </div>
-                <button className="btn-sm" onClick={() => addFromRegistry(srv)}>添加</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {searchDone && searchResults.length === 0 && (
-          <p className="text-muted">未找到匹配的 MCP 服务</p>
+          <p className="text-muted">No matching MCP servers found</p>
         )}
       </div>
 
       {/* 已添加列表 */}
-      <h4 className="catalog-section-title" style={{ marginTop: 20 }}>已配置的 MCP 服务</h4>
+      <h4 className="catalog-section-title" style={{ marginTop: 20 }}>Configured MCP Servers</h4>
       <div className="card-grid">
         {mcpServers.map((s) => (
           <div key={s.id} className="entity-card">
@@ -163,22 +174,22 @@ export default function McpServersPage() {
               <span className="mono">{s.command} {(s.args || []).join(" ")}</span>
             </div>
             <div className="entity-card-actions">
-              <button className="btn-sm btn-secondary" onClick={() => openEdit(s)}>编辑</button>
-              <button className="btn-sm btn-danger" onClick={async () => { await api.deleteMcpServer(s.id); load(); }}>删除</button>
+              <button className="btn-sm btn-secondary" onClick={() => openEdit(s)}>Edit</button>
+              <button className="btn-sm btn-danger" onClick={async () => { await api.deleteMcpServer(s.id); load(); }}>Delete</button>
             </div>
           </div>
         ))}
         <div className="entity-card add-card" onClick={() => openEdit()}>
           <span className="add-card-icon">+</span>
-          <span className="add-card-label">手动添加</span>
+          <span className="add-card-label">Add MCP Server</span>
         </div>
       </div>
 
-      <Drawer open={!!mcpEdit} title={mcpEdit?.id ? "编辑 MCP Server" : "添加 MCP Server"} onClose={() => setMcpEdit(null)}>
+      <Drawer open={!!mcpEdit} title={mcpEdit?.id ? "Edit MCP Server" : "Add MCP Server"} onClose={() => setMcpEdit(null)}>
         {mcpEdit && (
           <div className="drawer-form">
-            <label>名称</label>
-            <input value={mcpEdit.name || ""} onChange={(e) => setMcpEdit({ ...mcpEdit, name: e.target.value })} placeholder="例如：filesystem" />
+            <label>Name</label>
+            <input value={mcpEdit.name || ""} onChange={(e) => setMcpEdit({ ...mcpEdit, name: e.target.value })} placeholder="e.g. filesystem" />
 
             <label>Command</label>
             <input value={mcpEdit.command || ""} onChange={(e) => setMcpEdit({ ...mcpEdit, command: e.target.value })} placeholder="npx / uvx / docker" />
@@ -190,17 +201,20 @@ export default function McpServersPage() {
                 <button className="btn-sm btn-danger" onClick={() => removeArg(i)}>x</button>
               </div>
             ))}
-            <button className="btn-sm btn-secondary" onClick={addArg} style={{ marginBottom: 8 }}>+ 添加参数</button>
+            <button className="btn-sm btn-secondary" onClick={addArg} style={{ marginBottom: 8 }}>+ Add Arg</button>
 
-            <label>环境变量</label>
+            <label>Env</label>
             {envPairs.map((p, i) => (
-              <div key={i} style={{ display: "flex", gap: 4, marginBottom: 4 }}>
-                <input style={{ flex: 1 }} value={p.key} onChange={(e) => updateEnvPair(i, "key", e.target.value)} placeholder="KEY" />
-                <input style={{ flex: 1 }} value={p.value} onChange={(e) => updateEnvPair(i, "value", e.target.value)} placeholder="VALUE" />
-                <button className="btn-sm btn-danger" onClick={() => removeEnvPair(i)}>x</button>
+              <div key={i} style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 6 }}>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <input style={{ flex: 1 }} value={p.key} onChange={(e) => updateEnvPair(i, "key", e.target.value)} placeholder="KEY" />
+                  <input style={{ flex: 1 }} value={p.value} onChange={(e) => updateEnvPair(i, "value", e.target.value)} placeholder={p.hint || "VALUE"} />
+                  <button className="btn-sm btn-danger" onClick={() => removeEnvPair(i)}>x</button>
+                </div>
+                {p.hint && !p.value && <span style={{ fontSize: 11, color: "var(--text-secondary)", paddingLeft: 4 }}>{p.hint}</span>}
               </div>
             ))}
-            <button className="btn-sm btn-secondary" onClick={addEnvPair} style={{ marginBottom: 8 }}>+ 添加环境变量</button>
+            <button className="btn-sm btn-secondary" onClick={addEnvPair} style={{ marginBottom: 8 }}>+ Add Env</button>
 
             <div className="drawer-actions">
               <button onClick={save}>保存</button>
