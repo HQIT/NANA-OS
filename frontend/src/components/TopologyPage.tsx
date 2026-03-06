@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -178,14 +178,12 @@ function SubEditPanel({
   connectors,
   onSave,
   onDelete,
-  onClose,
 }: {
   sub: Subscription;
   agents: Agent[];
   connectors: Connector[];
   onSave: () => void;
   onDelete: () => void;
-  onClose: () => void;
 }) {
   const agent = agents.find((a) => a.id === sub.agent_id);
   const conn = matchConnector(sub.source_pattern, connectors);
@@ -286,8 +284,8 @@ export default function TopologyPage() {
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [panel, setPanel] = useState<PanelState>({ kind: "none" });
   const dataRef = useRef({ agents: [] as Agent[], connectors: [] as Connector[], subscriptions: [] as Subscription[] });
 
@@ -495,7 +493,6 @@ export default function TopologyPage() {
             connectors={connectors}
             onSave={refreshAfterEdit}
             onDelete={refreshAfterEdit}
-            onClose={closePanel}
           />
         )}
       </Drawer>
