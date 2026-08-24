@@ -28,6 +28,24 @@ def _container_name(agent_id: str) -> str:
     return f"dios-agent-{agent_id}"
 
 
+def _sync_shared_tools() -> None:
+    """将共享工具目录同步到 workspace/tools。"""
+    import shutil
+    tools_dest = settings.workspace_root / "tools"
+    src = settings.shared_tools_path
+    if src and Path(src).is_dir():
+        tools_dest.mkdir(parents=True, exist_ok=True)
+        for item in Path(src).iterdir():
+            dest = tools_dest / item.name
+            if item.is_file():
+                shutil.copy2(item, dest)
+            elif item.is_dir() and not dest.exists():
+                shutil.copytree(item, dest)
+        logger.info("Synced external tools from %s to %s", src, tools_dest)
+    else:
+        tools_dest.mkdir(parents=True, exist_ok=True)
+
+
 async def _sync_agent_workspace(agent: Agent, db: AsyncSession) -> dict[str, str]:
     """为 Agent 的 workspace 生成 models.yaml 和 mcp_servers.json，返回环境变量 dict。"""
     workspace = Path(agent.workspace_path)
@@ -42,6 +60,7 @@ async def _sync_agent_workspace(agent: Agent, db: AsyncSession) -> dict[str, str
         "AGENT_WORKSPACE": "/workspace",
         "LLM_MODELS_CONFIG_PATH": "/workspace/models.yaml",
         "DIOS_API": os.environ.get("DIOS_API_INTERNAL", "http://backend:8000"),
+        "EXTERNAL_TOOLS_PATH": "/workspace/tools",
     })
 
     result = await db.execute(select(LLMModel))
@@ -75,6 +94,9 @@ async def _sync_agent_workspace(agent: Agent, db: AsyncSession) -> dict[str, str
     (settings.workspace_root / "skills").mkdir(parents=True, exist_ok=True)
     (settings.workspace_root / "cli").mkdir(parents=True, exist_ok=True)
 
+    # 外部工具目录：从共享路径同步到 workspace（如 but-you agent-tools）
+    _sync_shared_tools()
+
     return env
 
 
@@ -93,6 +115,7 @@ def _start_container(agent: Agent, env: dict[str, str]) -> tuple[str, str]:
 
     host_shared_skills = _host_path(settings.workspace_root / "skills")
     host_shared_cli = _host_path(settings.workspace_root / "cli")
+    host_shared_tools = _host_path(settings.workspace_root / "tools")
 
     container = client.containers.run(
         image=settings.diagent_service_image,
@@ -103,6 +126,7 @@ def _start_container(agent: Agent, env: dict[str, str]) -> tuple[str, str]:
             host_ws: {"bind": "/workspace", "mode": "rw"},
             host_shared_skills: {"bind": "/workspace/skills", "mode": "ro"},
             host_shared_cli: {"bind": "/workspace/cli", "mode": "ro"},
+            host_shared_tools: {"bind": "/workspace/tools", "mode": "ro"},
         },
         network=DOCKER_NETWORK,
         detach=True,

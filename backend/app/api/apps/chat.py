@@ -151,8 +151,11 @@ async def chat_completions(request: Request, db: AsyncSession = Depends(get_db))
         payload["tool_selection"] = {"tool_ids": ["shell", "publish_event"]}
     capabilities = (agent.capabilities or {}) if isinstance(agent.capabilities, dict) else {}
     reasoning = capabilities.get("reasoning")
+    # 合并调用方传入的 custom_fields，透传给 DiAgent
+    caller_cf = body.get("custom_fields") or {}
     if isinstance(reasoning, dict) and reasoning:
-        payload["custom_fields"] = {"reasoning": reasoning}
+        caller_cf["reasoning"] = reasoning
+    if caller_cf:
 
     if payload["stream"]:
         async def _stream():

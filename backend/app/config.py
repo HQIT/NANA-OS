@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # 非空时启用 API Access Token（Authorization: Bearer 或 X-DiOS-Access-Token）
     access_token: str = ""
 
+    # 外部 Agent 工具目录，挂载到 DiAgent 容器的 /workspace/tools
+    shared_tools_path: str = ""
+
     model_config = {"env_prefix": "DIOS_"}
 
 
